@@ -54,13 +54,6 @@ run_aeri_pipeline('/path/to/scripts/aeri/temp','/path/to/output', false, false)
 run_aeri_pipeline('/path/to/scripts/aeri/temp','/path/to/output', true, true)
 ```
 
-## Notes & recommendations
-
-- Repository naming: the repo has been renamed to `AERI-procedures` (use hyphenated names for URL-safety). You can still display the human-readable title in the README and the repo description.
-- Avoid spaces in folder or repo names used in URLs or scripts.
-- If you have large previously-committed files in `aeri/temp/` that need pruning from history, use `git filter-repo` or BFG to rewrite history (this is irreversible; back up first).
-- If Docker is unavailable, the scripts can be adapted to run the Python tools directly in your environment; ensure the required Python packages and scripts are on PATH.
-
 ## Contact / debugging
 
 - If a script fails, run it with `-q` omitted (verbose mode) to see the docker command and outputs. Check that the Docker image referenced by `AERI_IMG` is accessible and that the volume mounts point to the correct host paths.
