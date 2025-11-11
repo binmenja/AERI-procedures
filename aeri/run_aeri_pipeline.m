@@ -11,7 +11,6 @@ if force
     forceFlag = "-f";
 end
 
-% NOTE: script name changed to match repository (aeri_qc_netcdf.sh)
 qc_cmd = sprintf('./aeri_qc_netcdf.sh -i "%s" -o "%s" %s', ...
                  inputRoot, outputRoot, forceFlag);
 fprintf('Running QC + netCDF:\n  %s\n', qc_cmd);
