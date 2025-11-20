@@ -13,8 +13,8 @@ if nargin < 2 || isempty(time_selections)
     error('Please provide time_selections as cell array of datetime strings');
 end
 
-if nargin < 3
-    output_file = '';
+if nargin < 3 || isempty(output_file)
+    output_file = 'spectra_quicklook.png';
 end
 if nargin < 4
     avg_window_minutes = 0;
@@ -261,22 +261,19 @@ for t = 1:length(target_times)
     plot_idx = plot_idx + 2;
 end
 
-sgtitle('AERI Radiance Spectra: Unfiltered vs QC Filtered', 'FontSize', 14, 'FontWeight', 'bold');
+sgtitle('AERI Radiance Spectra: Unfiltered vs QC Filtered', 'FontSize', 20, 'FontWeight', 'bold');
 
-% Save if requested
-if ~isempty(output_file)
-    % If output_file is just a filename (no path), save to output folder
-    [filepath, name, ext] = fileparts(output_file);
-    if isempty(filepath)
-        % Find output folder in root_dir
-        output_dir = dir(fullfile(root_dir, '**', 'output'));
-        if ~isempty(output_dir)
-            output_file = fullfile(output_dir(1).folder, output_dir(1).name, [name, ext]);
-        end
+% Save figure to output folder
+[filepath, name, ext] = fileparts(output_file);
+if isempty(filepath)
+    % Find output folder in root_dir
+    output_dir = dir(fullfile(root_dir, '**', 'output'));
+    if ~isempty(output_dir)
+        output_file = fullfile(output_dir(1).folder, output_dir(1).name, [name, ext]);
     end
-    saveas(fig, output_file)
-    fprintf('Figure saved to: %s\n', output_file);
 end
+saveas(fig, output_file)
+fprintf('Figure saved to: %s\n', output_file);
 
 fprintf('Quicklook spectra complete.\n');
 end

@@ -189,11 +189,14 @@ run_aeri_pipeline('../aeri_proc', '../aeri_proc', false, false, true)
 
 ```matlab
 % Time-series of radiance in key spectral bands
-% Plots are automatically saved to the output folder
+% Saves automatically to output folder with default filename if not specified
+quicklook_timeseries('../aeri_proc')
 quicklook_timeseries('../aeri_proc', 'timeseries.png')
 
 % Radiance spectra at specific times (comparing filtered vs unfiltered)
 % Shows which QC flags were raised for each time window
+% Saves automatically to output folder with default filename if not specified
+quicklook_spectra('../aeri_proc', {'2024-04-08 12:00:00', '2024-04-08 18:30:00'})
 quicklook_spectra('../aeri_proc', {'2024-04-08 12:00:00', '2024-04-08 18:30:00'}, 'spectra.png')
 
 % With 10-minute averaging window (averages ±10 min around target times)
@@ -205,6 +208,9 @@ quicklook_spectra('../aeri_proc', times, 'spectra_daily.png', 5)
 ```
 
 **Note on plot outputs:**
+
+- Plots are **always saved** to the output folder
+- If you don't provide a filename, default names are used ('timeseries_quicklook.png', 'spectra_quicklook.png')
 - If you provide just a filename (e.g., 'plot.png'), it will be saved in the `output/` subfolder of your data directory
 - If you provide a full path (e.g., '/path/to/plot.png'), it will be saved there
 - QC flags are read directly from the GEOMS files and displayed in the plots

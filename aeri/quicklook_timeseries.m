@@ -11,8 +11,9 @@ function quicklook_timeseries(root_dir, output_file)
 %   - Window region (~990 cm^-1)
 %   - H2O band center (~1595 cm^-1)
 
-if nargin < 2
-    output_file = '';
+if nargin < 2 || isempty(output_file)
+    % Generate default filename with timestamp
+    output_file = 'timeseries_quicklook.png';
 end
 
 % Define spectral bands of interest (wavenumbers in cm^-1)
@@ -112,7 +113,7 @@ title(sprintf('CO_2 Band (%.1f cm^{-1})', bands.co2))
 legend('Valid', 'QC Flagged', 'Location', 'best')
 grid on
 box on
-set(gca, 'XTickLabel', [])
+set(gca, 'XTickLabel', [],'fontSize', 20)
 
 % Plot atmospheric window
 subplot(4, 1, 2)
@@ -126,7 +127,7 @@ title(sprintf('Atmospheric Window (%.1f cm^{-1})', bands.window))
 legend('Valid', 'QC Flagged', 'Location', 'best')
 grid on
 box on
-set(gca, 'XTickLabel', [])
+set(gca, 'XTickLabel', [],'fontSize', 20)
 
 % Plot O3 band
 subplot(4, 1, 3)
@@ -140,7 +141,7 @@ title(sprintf('O_3 Band (%.1f cm^{-1})', bands.o3))
 legend('Valid', 'QC Flagged', 'Location', 'best')
 grid on
 box on
-set(gca, 'XTickLabel', [])
+set(gca, 'XTickLabel', [],'fontSize', 20)
 
 % Plot H2O band
 subplot(4, 1, 4)
@@ -155,24 +156,24 @@ xlabel('Time (UTC)')
 legend('Valid', 'QC Flagged', 'Location', 'best')
 grid on
 box on
+set(gca, 'XTickLabel', [],'fontSize', 20)
+
+
 
 % Add overall title
-sgtitle('AERI Radiance Time Series - Key Spectral Bands', 'FontSize', 14, 'FontWeight', 'bold')
+sgtitle('AERI Radiance Time Series - Key Spectral Bands', 'FontSize', 20, 'FontWeight', 'bold')
 
-% Save if requested
-if ~isempty(output_file)
-    % If output_file is just a filename (no path), save to output folder
-    [filepath, name, ext] = fileparts(output_file);
-    if isempty(filepath)
-        % Find output folder in root_dir
-        output_dir = dir(fullfile(root_dir, '**', 'output'));
-        if ~isempty(output_dir)
-            output_file = fullfile(output_dir(1).folder, output_dir(1).name, [name, ext]);
-        end
+% Save figure to output folder
+[filepath, name, ext] = fileparts(output_file);
+if isempty(filepath)
+    % Find output folder in root_dir
+    output_dir = dir(fullfile(root_dir, '**', 'output'));
+    if ~isempty(output_dir)
+        output_file = fullfile(output_dir(1).folder, output_dir(1).name, [name, ext]);
     end
-    saveas(fig, output_file)
-    fprintf('Figure saved to: %s\n', output_file);
 end
+saveas(fig, output_file)
+fprintf('Figure saved to: %s\n', output_file);
 
 fprintf('Quicklook time-series complete. Total observations: %d\n', length(all_times));
 end
