@@ -87,6 +87,24 @@ which matlab
   - Automatically detects location from lat/lon coordinates in files.
   - Supported locations: Gault, NRC, Burnside, Inuvik, Radar.
 
+- `aeri/quicklook_timeseries.m` — Time-series quicklook plots
+
+  - Creates time-series plots of radiance in key spectral bands (CO2, O3, window, H2O).
+  - Shows QC-flagged data in red for quality assessment.
+  - Reads QC flags directly from GEOMS files (FLAG.MEASUREMENT.QUALITY variable).
+  - Automatically saves plots to the output folder when given just a filename.
+  - Usage: `quicklook_timeseries('../aeri_proc', 'timeseries.png')`
+
+- `aeri/quicklook_spectra.m` — Spectral quicklook plots
+
+  - Plots full radiance spectra at selected times with comparison of unfiltered vs QC-filtered data.
+  - Reads QC flags directly from GEOMS files and shows which specific flags were raised.
+  - Supports averaging over time windows for reduced noise.
+  - Automatically saves plots to the output folder when given just a filename.
+  - Usage: `quicklook_spectra('../aeri_proc', {'2024-04-08 12:00:00', '2024-04-08 18:30:00'}, 'spectra.png', 5)`
+    - Arguments: root_dir, time_selections (cell array), output_file (optional), avg_window_minutes (optional, default: 0)
+    - avg_window_minutes: If > 0, averages all spectra within ± this window around target times
+
 ## Key configuration
 
 - **Docker image**: Scripts use `gitlab.ssec.wisc.edu:5555/aeri/aeri_armory` (configurable via `AERI_IMG` variable).
@@ -156,6 +174,7 @@ cd aeri/
 ```
 
 **3) GEOMS conversion (from MATLAB):**
+
 ```matlab
 % Process all AE folders in directory
 processDailyAERIdata_GEOMS('../aeri_proc', false, true)
@@ -165,6 +184,30 @@ processDailyAERIdata_GEOMS('../aeri_proc', false, true)
 run_aeri_pipeline('../aeri_proc', '../aeri_proc', false, false, true)
 % arguments: inputRoot, outputRoot, doCalVal, force, doGEOMS
 ```
+
+**4) Quicklook plots (from MATLAB):**
+
+```matlab
+% Time-series of radiance in key spectral bands
+% Plots are automatically saved to the output folder
+quicklook_timeseries('../aeri_proc', 'timeseries.png')
+
+% Radiance spectra at specific times (comparing filtered vs unfiltered)
+% Shows which QC flags were raised for each time window
+quicklook_spectra('../aeri_proc', {'2024-04-08 12:00:00', '2024-04-08 18:30:00'}, 'spectra.png')
+
+% With 10-minute averaging window (averages ±10 min around target times)
+quicklook_spectra('../aeri_proc', {'2024-04-08 12:00:00'}, 'spectra_avg.png', 10)
+
+% Multiple times with 5-minute averaging
+times = {'2024-04-08 00:00:00', '2024-04-08 06:00:00', '2024-04-08 12:00:00', '2024-04-08 18:00:00'};
+quicklook_spectra('../aeri_proc', times, 'spectra_daily.png', 5)
+```
+
+**Note on plot outputs:**
+- If you provide just a filename (e.g., 'plot.png'), it will be saved in the `output/` subfolder of your data directory
+- If you provide a full path (e.g., '/path/to/plot.png'), it will be saved there
+- QC flags are read directly from the GEOMS files and displayed in the plots
 
 ## Expected Output Structure
 
