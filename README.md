@@ -184,18 +184,27 @@ AE240408/
     └── groundbased_aeri_mcgill125_radar_20240408t000000z_20240408t235959z_001.nc  # GEOMS file
 ```
 
-## Contact / debugging
+## Troubleshooting
 
 If a script fails, run it with verbose mode (omit `-q`) to see the docker command and outputs. Check that:
+
 - The Docker image `gitlab.ssec.wisc.edu:5555/aeri/aeri_armory` is accessible
 - Volume mounts point to the correct host paths
 - Input folders follow the `AEYYMMDD` naming convention
 - MATLAB is accessible from the terminal for GEOMS conversion
 
 Common issues:
+
 - **Docker permission errors**: Add your user to the docker group (Linux) or ensure Docker Desktop is running (macOS/Windows)
 - **MATLAB not found**: Add MATLAB to your PATH or specify the full path in the scripts
-- **Location not detected**: Verify lat/lon in netCDF files are correct and within 0.1° of known sites. You can add a site manually with a tolerance in the processDailyAERIdata_GEOMS function. 
+- **Location not detected**: Verify lat/lon in netCDF files are correct and within 0.1° of known sites
+
+## Contact
+
+For questions or issues with these scripts, contact:
+
+**Benjamin Riot-Bretêcher**  
+Email: benjamin.riotbretecher@mail.mcgill.ca
 
 ## License
 
