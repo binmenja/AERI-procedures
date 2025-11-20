@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Wrapper script to run the full AERI pipeline from terminal
+# Calls run_aeri_pipeline.m with appropriate parameters
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INPUT_ROOT="${SCRIPT_DIR}/temp"
+OUTPUT_ROOT=""  # Will default to INPUT_ROOT if not specified
+DO_CALVAL="false"
+FORCE="false"
+DO_GEOMS="true"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-c] [-f] [--no-geoms]
+
+Run full AERI pipeline via MATLAB:
+  1. QC and DMV->NetCDF conversion (aeri_qc_netcdf.sh)
+  2. Calibration/blackbody processing (optional, aeri_cal_val.sh)
+  3. GEOMS netCDF conversion (processDailyAERIdata_GEOMS.m)
+
+Options:
+  -i INPUT_ROOT   Root directory with AEYYMMDD folders (default: ${SCRIPT_DIR}/temp)
+  -o OUTPUT_ROOT  Output directory (default: same as INPUT_ROOT)
+  -c              Run calibration/blackbody processing
+  -f              Force overwrite existing files
+  --no-geoms      Skip GEOMS netCDF conversion
+  -h              Show this help message
+
+Examples:
+  $(basename "$0")                    # Process with defaults
+  $(basename "$0") -c                 # Include calibration
+  $(basename "$0") -i ./data -f       # Custom input, force overwrite
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -i)
+      INPUT_ROOT="$2"
+      shift 2
+      ;;
+    -o)
+      OUTPUT_ROOT="$2"
+      shift 2
+      ;;
+    -c)
+      DO_CALVAL="true"
+      shift
+      ;;
+    -f)
+      FORCE="true"
+      shift
+      ;;
+    --no-geoms)
+      DO_GEOMS="false"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# If output not specified, default to input
+if [ -z "$OUTPUT_ROOT" ]; then
+  OUTPUT_ROOT="$INPUT_ROOT"
+fi
+
+# Check if MATLAB is available
+if ! command -v matlab &> /dev/null; then
+  echo "ERROR: MATLAB not found in PATH" >&2
+  echo "Please ensure MATLAB is installed and accessible from terminal" >&2
+  exit 1
+fi
+
+# Build MATLAB command
+MATLAB_CMD="cd('${SCRIPT_DIR}'); run_aeri_pipeline('${INPUT_ROOT}', '${OUTPUT_ROOT}', ${DO_CALVAL}, ${FORCE}, ${DO_GEOMS}); exit"
+
+echo "========================================="
+echo "Running AERI Pipeline"
+echo "========================================="
+echo "Input:       ${INPUT_ROOT}"
+echo "Output:      ${OUTPUT_ROOT}"
+echo "CalVal:      ${DO_CALVAL}"
+echo "Force:       ${FORCE}"
+echo "GEOMS:       ${DO_GEOMS}"
+echo "========================================="
+echo ""
+
+# Run MATLAB in batch mode
+matlab -batch "${MATLAB_CMD}"
+
+echo ""
+echo "========================================="
+echo "Pipeline complete!"
+echo "========================================="
