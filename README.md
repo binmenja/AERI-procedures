@@ -6,17 +6,21 @@ This repository contains small utilities and pipeline wrappers used to process A
 
 - `aeri/aeri_qc_netcdf.sh` — Run AERI QC and convert DMV files to netCDF
 
-  - Loops over day-folders named like `AEYYMMDD/` under the input root.
+  - Processes AEYYMMDD folders. If no folder is specified, automatically processes the most recent AE* folder in the input root.
   - For each day it runs two steps inside a Docker image (configured by `AERI_IMG`):
     1. `quality_control.py` to generate QC output (produces `*QC.nc`).
     2. `dmv_to_netcdf.py` to convert DMV files to `.nc` files (excluding QC files).
   - Key options: `-i INPUT_ROOT`, `-o OUTPUT_ROOT`, `-f` (force overwrite), `-q` (quiet).
+  - Optional positional argument: path to a specific AE folder to process.
+  - Usage: `./aeri_qc_netcdf.sh [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-f] [-q] [AE_FOLDER]`
 
 - `aeri/aeri_cal_val.sh` — Run calibration/blackbody (cal_val.py) over day folders
 
-  - Loops over the same `AE*` day folders and runs `cal_val.py` inside the same Docker image.
-  - Produces calibration outputs (e.g. files named `bbcal_*`) in each day's `output/` folder.
+  - Processes AEYYMMDD folders. If no folder is specified, automatically processes the most recent AE* folder in the input root.
+  - Runs `cal_val.py` inside the Docker image and produces calibration outputs (e.g. files named `bbcal_*`) in each day's `output/` folder.
   - Key options: `-i INPUT_ROOT`, `-o OUTPUT_ROOT`, `-f` (force), `-r "START END"` (record range), `-s` (separate records), `-q` (quiet).
+  - Optional positional argument: path to a specific AE folder to process.
+  - Usage: `./aeri_cal_val.sh [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-f] [-r "START END"] [-s] [-q] [AE_FOLDER]`
 
 - `aeri/run_aeri_pipeline.m` — MATLAB wrapper to run the shell pipeline
 
@@ -36,12 +40,26 @@ This repository contains small utilities and pipeline wrappers used to process A
 
 ## Example workflows
 
-1) From the shell (process all days, force overwrite):
+1) From the shell (process the most recent AE folder):
 
 ```bash
 cd /path/to/scripts/aeri
-./aeri_qc_netcdf.sh -i ./temp -o ./temp -f
-./aeri_cal_val.sh -i ./temp -o ./temp -f
+./aeri_qc_netcdf.sh -i ./temp -o ./temp
+./aeri_cal_val.sh -i ./temp -o ./temp
+```
+
+Or process a specific AE folder:
+
+```bash
+./aeri_qc_netcdf.sh -i ./temp -o ./temp /path/to/AE240408
+./aeri_cal_val.sh -i ./temp -o ./temp /path/to/AE240408
+```
+
+Or use relative paths (the scripts convert them to absolute paths for Docker):
+
+```bash
+./aeri_qc_netcdf.sh -i "." -o "output"
+./aeri_cal_val.sh -i "." -o "output"
 ```
 
 2) From MATLAB (run QC + netCDF; optionally do cal/BB):
