@@ -161,9 +161,9 @@ for daydir in "${AE_FOLDERS[@]}"; do
       outdir_mount=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
       log "  [DEBUG] Mount paths: $daydir_mount and $outdir_mount"
       
-      # Bypass entrypoint on Windows - call python3 directly
+      # Bypass entrypoint on Windows - call python3 directly with full path
       docker run --rm \
-        --entrypoint python3 \
+        --entrypoint /aeri_armory_env/bin/python3 \
         -v "$daydir_mount:$daydir_mount" \
         -v "$outdir_mount:$outdir_mount" \
         "$AERI_IMG" \
@@ -197,7 +197,7 @@ for daydir in "${AE_FOLDERS[@]}"; do
       outdir_mount=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
       
       docker run --rm \
-        --entrypoint python3 \
+        --entrypoint /aeri_armory_env/bin/python3 \
         -v "$daydir_mount:$daydir_mount" \
         -v "$outdir_mount:$outdir_mount" \
         "$AERI_IMG" \
