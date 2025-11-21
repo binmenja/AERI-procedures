@@ -261,6 +261,8 @@ Common issues:
 - **Docker permission errors**: Add your user to the docker group (Linux) or ensure Docker Desktop is running (macOS/Windows)
 - **MATLAB not found**: Add MATLAB to your PATH or specify the full path in the scripts
 - **Location not detected**: Verify lat/lon in netCDF files are correct and within 0.1° of known sites
+- **Windows: Git Bash not found**: The scripts automatically detect and use Git Bash on Windows. If you get an error about bash not being found, ensure Git for Windows is installed correctly from https://git-scm.com/download/win
+- **Windows: Shell script errors**: Make sure you're running the scripts from Git Bash (not PowerShell or CMD). The scripts will automatically invoke bash to run `.sh` files on Windows.
 
 ## Contact
 
