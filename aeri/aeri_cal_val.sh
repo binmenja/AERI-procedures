@@ -192,7 +192,7 @@ for daydir in "${AE_FOLDERS[@]}"; do
     fi
     
     docker run --rm \
-      --entrypoint /aeri_armory_env/bin/python3 \
+      --entrypoint //aeri_armory_env/bin/python3 \
       -v "$daydir_mount:$daydir_mount" \
       -v "$outdir_mount:$outdir_mount" \
       "$AERI_IMG" \
