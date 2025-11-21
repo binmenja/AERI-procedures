@@ -152,16 +152,14 @@ for daydir in "${AE_FOLDERS[@]}"; do
     log "    -v \"$daydir_abs\":\"$daydir_abs\""
     log "    -v \"$outdir_abs\":\"$outdir_abs\""
 
-    # On Windows, use cmd.exe to run Docker to avoid Git Bash entrypoint issues
+    # On Windows, call docker directly but set MSYS_NO_PATHCONV inline
     if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-      log "  [DEBUG] Using cmd.exe to run Docker on Windows"
-      # Build the docker command as a string for cmd.exe
-      docker_cmd="docker run --rm -v \"$daydir_abs:$daydir_abs\" -v \"$outdir_abs:$outdir_abs\" ${DOCKER_CMD[*]}"
-      log "  [DEBUG] Command: $docker_cmd"
-      if ! cmd.exe /c "$docker_cmd"; then
-        echo "ERROR: Docker command failed" >&2
-        exit 1
-      fi
+      log "  [DEBUG] Running Docker on Windows with path conversion disabled"
+      # Use MSYS_NO_PATHCONV as inline prefix and call docker directly
+      MSYS_NO_PATHCONV=1 docker run --rm \
+        -v "$daydir_abs":"$daydir_abs" \
+        -v "$outdir_abs":"$outdir_abs" \
+        "${DOCKER_CMD[@]}"
     else
       docker run --rm \
         -v "$daydir_abs:$daydir_abs" \
@@ -185,10 +183,13 @@ for daydir in "${AE_FOLDERS[@]}"; do
 
     log "  NetCDF: running dmv_to_netcdf.py"
     
-    # On Windows, use cmd.exe to run Docker
+    # On Windows, call docker directly with MSYS_NO_PATHCONV
     if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-      docker_cmd="docker run --rm -v \"$daydir_abs:$daydir_abs\" -v \"$outdir_abs:$outdir_abs\" $AERI_IMG dmv_to_netcdf.py \"$daydir_abs\" -o \"$outdir_abs\" -vv"
-      cmd.exe /c "$docker_cmd"
+      MSYS_NO_PATHCONV=1 docker run --rm \
+        -v "$daydir_abs":"$daydir_abs" \
+        -v "$outdir_abs":"$outdir_abs" \
+        "$AERI_IMG" \
+        dmv_to_netcdf.py "$daydir_abs" -o "$outdir_abs" -vv
     else
       docker run --rm \
         -v "$daydir_abs:$daydir_abs" \
