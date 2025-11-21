@@ -137,22 +137,6 @@ for daydir in "${AE_FOLDERS[@]}"; do
   # Convert to absolute paths for Docker volume mounts
   daydir_abs=$(cd "$daydir" && pwd)
   outdir_abs=$(cd "$outdir" && pwd)
-  
-  # On Windows (Git Bash), convert paths to Windows format for Docker
-  # Docker on Windows expects C:/Users/... not /c/Users/...
-  if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-    # Use cygpath if available, otherwise use sed
-    if command -v cygpath &> /dev/null; then
-      daydir_abs=$(cygpath -w "$daydir_abs")
-      outdir_abs=$(cygpath -w "$outdir_abs")
-    else
-      daydir_abs=$(echo "$daydir_abs" | sed 's|^/\([a-z]\)/|\U\1:/|')
-      outdir_abs=$(echo "$outdir_abs" | sed 's|^/\([a-z]\)/|\U\1:/|')
-    fi
-    # Use forward slashes (Docker accepts both on Windows)
-    daydir_abs="${daydir_abs//\\//}"
-    outdir_abs="${outdir_abs//\\//}"
-  fi
 
   log "=== Cal/BB for $daybase ==="
   log "  Input:  $daydir_abs"
@@ -181,33 +165,16 @@ for daydir in "${AE_FOLDERS[@]}"; do
   # Build docker command array and append extra args only if present to avoid
   # injecting an empty string argument which confuses cal_val.py's arg parser.
   
-  # On Windows, use /c/path format with default entrypoint and MSYS_NO_PATHCONV
-  if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-    daydir_mount=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
-    outdir_mount=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
-    
-    DOCKER_CMD=(cal_val.py "$daydir_mount" -o "$outdir_mount" -vv)
-    if [ ${#CALVAL_EXTRA_ARGS[@]} -gt 0 ]; then
-      DOCKER_CMD+=("${CALVAL_EXTRA_ARGS[@]}")
-    fi
-    
-    MSYS_NO_PATHCONV=1 docker run --rm \
-      -v "$daydir_mount:$daydir_mount" \
-      -v "$outdir_mount:$outdir_mount" \
-      "$AERI_IMG" \
-      "${DOCKER_CMD[@]}"
-  else
-    DOCKER_CMD=(cal_val.py "$daydir_abs" -o "$outdir_abs" -vv)
-    if [ ${#CALVAL_EXTRA_ARGS[@]} -gt 0 ]; then
-      DOCKER_CMD+=("${CALVAL_EXTRA_ARGS[@]}")
-    fi
-    
-    docker run --rm \
-      -v "$daydir_abs:$daydir_abs" \
-      -v "$outdir_abs:$outdir_abs" \
-      "$AERI_IMG" \
-      "${DOCKER_CMD[@]}"
+  DOCKER_CMD=(cal_val.py "$daydir_abs" -o "$outdir_abs" -vv)
+  if [ ${#CALVAL_EXTRA_ARGS[@]} -gt 0 ]; then
+    DOCKER_CMD+=("${CALVAL_EXTRA_ARGS[@]}")
   fi
+  
+  docker run --rm \
+    -v "$daydir_abs:$daydir_abs" \
+    -v "$outdir_abs:$outdir_abs" \
+    "$AERI_IMG" \
+    "${DOCKER_CMD[@]}"
 
   log ""
 done
