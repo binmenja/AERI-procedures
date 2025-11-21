@@ -33,7 +33,21 @@ sudo usermod -aG docker $USER
 ```
 
 **Windows:**
+
 Download and install Docker Desktop from https://www.docker.com/products/docker-desktop
+
+**Important for Windows users:** You also need Git Bash to run the shell scripts:
+
+1. Download and install Git for Windows from https://git-scm.com/download/win
+2. During installation, accept the default options
+3. After installation, you can right-click in any folder and select "Git Bash Here" to open a terminal
+4. Git Bash provides a Unix-like environment that allows you to run the `.sh` scripts on Windows
+
+**Running on Windows:**
+- Use Git Bash (not PowerShell or CMD) to run the scripts
+- Use Windows-style paths with forward slashes: `C:/Users/YourName/Desktop/test_aeri`
+- Or use Git Bash paths: `/c/Users/YourName/Desktop/test_aeri` (both work)
+- Example: `./run_aeri_pipeline.sh -i "C:/Users/YourName/Desktop/test_aeri"`
 
 #### Pulling the AERI Docker Image
 
