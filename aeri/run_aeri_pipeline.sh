@@ -81,14 +81,32 @@ if ! command -v matlab &> /dev/null; then
   exit 1
 fi
 
+# Convert paths for Windows if running in Git Bash/MSYS
+# Detect if we're on Windows (Git Bash shows MSYS or MINGW in uname)
+if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
+  # Convert /c/Users/... to C:/Users/...
+  SCRIPT_DIR_WIN=$(cygpath -w "$SCRIPT_DIR" 2>/dev/null || echo "$SCRIPT_DIR" | sed 's|^/\([a-z]\)/|\1:/|')
+  INPUT_ROOT_WIN=$(cygpath -w "$INPUT_ROOT" 2>/dev/null || echo "$INPUT_ROOT" | sed 's|^/\([a-z]\)/|\1:/|')
+  OUTPUT_ROOT_WIN=$(cygpath -w "$OUTPUT_ROOT" 2>/dev/null || echo "$OUTPUT_ROOT" | sed 's|^/\([a-z]\)/|\1:/|')
+  # Use forward slashes for MATLAB (works on all platforms)
+  SCRIPT_DIR_WIN="${SCRIPT_DIR_WIN//\\//}"
+  INPUT_ROOT_WIN="${INPUT_ROOT_WIN//\\//}"
+  OUTPUT_ROOT_WIN="${OUTPUT_ROOT_WIN//\\//}"
+else
+  # On Linux/Mac, use paths as-is
+  SCRIPT_DIR_WIN="$SCRIPT_DIR"
+  INPUT_ROOT_WIN="$INPUT_ROOT"
+  OUTPUT_ROOT_WIN="$OUTPUT_ROOT"
+fi
+
 # Build MATLAB command
-MATLAB_CMD="cd('${SCRIPT_DIR}'); run_aeri_pipeline('${INPUT_ROOT}', '${OUTPUT_ROOT}', ${DO_CALVAL}, ${FORCE}, ${DO_GEOMS}); exit"
+MATLAB_CMD="cd('${SCRIPT_DIR_WIN}'); run_aeri_pipeline('${INPUT_ROOT_WIN}', '${OUTPUT_ROOT_WIN}', ${DO_CALVAL}, ${FORCE}, ${DO_GEOMS}); exit"
 
 echo "========================================="
 echo "Running AERI Pipeline"
 echo "========================================="
-echo "Input:       ${INPUT_ROOT}"
-echo "Output:      ${OUTPUT_ROOT}"
+echo "Input:       ${INPUT_ROOT_WIN}"
+echo "Output:      ${OUTPUT_ROOT_WIN}"
 echo "CalVal:      ${DO_CALVAL}"
 echo "Force:       ${FORCE}"
 echo "GEOMS:       ${DO_GEOMS}"

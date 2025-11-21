@@ -14,7 +14,7 @@ function B = planck_aeri_t_to_b(wavnum, t)
     
     % Preallocate output
     B = NaN(size(wavnum,1), size(t,2));
-    
+
     % Calculate spectral radiance for each column
     for i = 1:size(t,2)
         B(:,i) = 1000 .* (c1 .* wavnum.^3) ./ (exp(c2 .* wavnum ./ t(:,i)) - 1);
