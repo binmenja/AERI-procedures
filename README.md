@@ -34,7 +34,7 @@ sudo usermod -aG docker $USER
 
 **Windows:**
 
-*Windows is not yet supported. The scripts are designed for macOS and Linux environments.*
+*Windows is not yet supported.* The scripts are designed for macOS and Linux environments.
 
 #### Pulling the AERI Docker Image
 
