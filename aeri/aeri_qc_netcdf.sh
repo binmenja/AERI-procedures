@@ -157,7 +157,11 @@ for daydir in "${AE_FOLDERS[@]}"; do
       log "  [DEBUG] Using cmd.exe to run Docker on Windows"
       # Build the docker command as a string for cmd.exe
       docker_cmd="docker run --rm -v \"$daydir_abs:$daydir_abs\" -v \"$outdir_abs:$outdir_abs\" ${DOCKER_CMD[*]}"
-      cmd.exe /c "$docker_cmd"
+      log "  [DEBUG] Command: $docker_cmd"
+      if ! cmd.exe /c "$docker_cmd"; then
+        echo "ERROR: Docker command failed" >&2
+        exit 1
+      fi
     else
       docker run --rm \
         -v "$daydir_abs:$daydir_abs" \
