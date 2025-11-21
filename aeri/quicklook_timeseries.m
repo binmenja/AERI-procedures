@@ -113,7 +113,7 @@ title(sprintf('CO_2 Band (%.1f cm^{-1})', bands.co2))
 legend('Valid', 'QC Flagged', 'Location', 'best')
 grid on
 box on
-set(gca, 'XTickLabel', [],'fontSize', 20)
+set(gca, 'XTickLabel', [],'fontSize', 15)
 
 % Plot atmospheric window
 subplot(4, 1, 2)
@@ -127,7 +127,7 @@ title(sprintf('Atmospheric Window (%.1f cm^{-1})', bands.window))
 legend('Valid', 'QC Flagged', 'Location', 'best')
 grid on
 box on
-set(gca, 'XTickLabel', [],'fontSize', 20)
+set(gca, 'XTickLabel', [],'fontSize', 15)
 
 % Plot O3 band
 subplot(4, 1, 3)
@@ -141,7 +141,7 @@ title(sprintf('O_3 Band (%.1f cm^{-1})', bands.o3))
 legend('Valid', 'QC Flagged', 'Location', 'best')
 grid on
 box on
-set(gca, 'XTickLabel', [],'fontSize', 20)
+set(gca, 'XTickLabel', [],'fontSize', 15)
 
 % Plot H2O band
 subplot(4, 1, 4)
@@ -156,12 +156,13 @@ xlabel('Time (UTC)')
 legend('Valid', 'QC Flagged', 'Location', 'best')
 grid on
 box on
-set(gca, 'XTickLabel', [],'fontSize', 20)
+set(gca, 'fontSize', 15)
+datetick('x', 'HH:MM', 'keeplimits')
 
 
 
 % Add overall title
-sgtitle('AERI Radiance Time Series - Key Spectral Bands', 'FontSize', 20, 'FontWeight', 'bold')
+sgtitle('AERI Radiance Time Series - Key Spectral Bands', 'FontSize', 15, 'FontWeight', 'bold')
 
 % Save figure to output folder
 [filepath, name, ext] = fileparts(output_file);
