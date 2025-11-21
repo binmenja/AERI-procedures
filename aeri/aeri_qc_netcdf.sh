@@ -100,6 +100,13 @@ for daydir in "${AE_FOLDERS[@]}"; do
   daydir_abs=$(cd "$daydir" && pwd)
   outdir_abs=$(cd "$outdir" && pwd)
   
+  # Debug: show paths before conversion
+  if [ "$VERBOSE" -eq 1 ]; then
+    echo "  [DEBUG] Before conversion: daydir_abs=$daydir_abs" >&2
+    echo "  [DEBUG] Before conversion: outdir_abs=$outdir_abs" >&2
+    echo "  [DEBUG] uname -s: $(uname -s)" >&2
+  fi
+  
   # On Windows (Git Bash), convert paths to Windows format for Docker
   # Docker on Windows expects C:/Users/... not /c/Users/...
   if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
@@ -114,6 +121,12 @@ for daydir in "${AE_FOLDERS[@]}"; do
     # Use forward slashes (Docker accepts both on Windows)
     daydir_abs="${daydir_abs//\\//}"
     outdir_abs="${outdir_abs//\\//}"
+  fi
+  
+  # Debug: show paths after conversion
+  if [ "$VERBOSE" -eq 1 ]; then
+    echo "  [DEBUG] After conversion: daydir_abs=$daydir_abs" >&2
+    echo "  [DEBUG] After conversion: outdir_abs=$outdir_abs" >&2
   fi
 
   log "=== Processing $daybase ==="
@@ -133,6 +146,11 @@ for daydir in "${AE_FOLDERS[@]}"; do
     if [ "$FORCE" -eq 1 ]; then
       DOCKER_CMD+=( -f )
     fi
+    
+    # Debug: show the exact docker command
+    log "  Docker volume mounts:"
+    log "    -v \"$daydir_abs\":\"$daydir_abs\""
+    log "    -v \"$outdir_abs\":\"$outdir_abs\""
 
     docker run --rm \
       -v "$daydir_abs":"$daydir_abs" \
