@@ -185,19 +185,22 @@ for daydir in "${AE_FOLDERS[@]}"; do
     DOCKER_CMD+=("${CALVAL_EXTRA_ARGS[@]}")
   fi
 
-  # Use Windows-compatible Docker volume format if on Windows
+  # On Windows, disable MSYS path conversion for Docker commands
   if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-    daydir_docker=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|//\L\1|')
-    outdir_docker=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|//\L\1|')
-  else
-    daydir_docker="$daydir_abs"
-    outdir_docker="$outdir_abs"
+    export MSYS_NO_PATHCONV=1
+    export MSYS2_ARG_CONV_EXCL="*"
   fi
 
   docker run --rm \
-    -v "$daydir_docker":"$daydir_abs" \
-    -v "$outdir_docker":"$outdir_abs" \
+    -v "$daydir_abs":"$daydir_abs" \
+    -v "$outdir_abs":"$outdir_abs" \
     "${DOCKER_CMD[@]}"
+  
+  # Re-enable path conversion
+  if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
+    unset MSYS_NO_PATHCONV
+    unset MSYS2_ARG_CONV_EXCL
+  fi
 
   log ""
 done

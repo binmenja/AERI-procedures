@@ -152,22 +152,23 @@ for daydir in "${AE_FOLDERS[@]}"; do
     log "    -v \"$daydir_abs\":\"$daydir_abs\""
     log "    -v \"$outdir_abs\":\"$outdir_abs\""
 
-    # On Windows, use //c/... format for volume mounts to avoid : confusion
-    # Git Bash can misinterpret C:/... in docker -v arguments
+    # On Windows, disable MSYS path conversion for Docker commands
+    # This prevents Git Bash from mangling Windows paths
     if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-      # Convert C:/path to //c/path for Docker
-      daydir_docker=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|//\L\1|')
-      outdir_docker=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|//\L\1|')
-      log "  [DEBUG] Docker format: $daydir_docker and $outdir_docker"
-    else
-      daydir_docker="$daydir_abs"
-      outdir_docker="$outdir_abs"
+      export MSYS_NO_PATHCONV=1
+      export MSYS2_ARG_CONV_EXCL="*"
     fi
 
     docker run --rm \
-      -v "$daydir_docker":"$daydir_abs" \
-      -v "$outdir_docker":"$outdir_abs" \
+      -v "$daydir_abs":"$daydir_abs" \
+      -v "$outdir_abs":"$outdir_abs" \
       "${DOCKER_CMD[@]}"
+    
+    # Re-enable path conversion after docker command
+    if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
+      unset MSYS_NO_PATHCONV
+      unset MSYS2_ARG_CONV_EXCL
+    fi
   fi
 
   # ---------- 2) DMV → netCDF: look for any converted .nc in outdir ----------
@@ -185,20 +186,23 @@ for daydir in "${AE_FOLDERS[@]}"; do
 
     log "  NetCDF: running dmv_to_netcdf.py"
     
-    # Use Windows-compatible Docker volume format if on Windows
+    # On Windows, disable MSYS path conversion for Docker commands
     if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-      daydir_docker=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|//\L\1|')
-      outdir_docker=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|//\L\1|')
-    else
-      daydir_docker="$daydir_abs"
-      outdir_docker="$outdir_abs"
+      export MSYS_NO_PATHCONV=1
+      export MSYS2_ARG_CONV_EXCL="*"
     fi
     
     docker run --rm \
-      -v "$daydir_docker":"$daydir_abs" \
-      -v "$outdir_docker":"$outdir_abs" \
+      -v "$daydir_abs":"$daydir_abs" \
+      -v "$outdir_abs":"$outdir_abs" \
       "$AERI_IMG" \
       dmv_to_netcdf.py "$daydir_abs" -o "$outdir_abs" -vv
+    
+    # Re-enable path conversion
+    if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
+      unset MSYS_NO_PATHCONV
+      unset MSYS2_ARG_CONV_EXCL
+    fi
   fi
 
   log ""
