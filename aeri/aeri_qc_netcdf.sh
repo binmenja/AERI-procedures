@@ -4,7 +4,7 @@ set -euo pipefail
 # Default settings
 AERI_IMG="gitlab.ssec.wisc.edu:5555/aeri/aeri_armory"
 INPUT_ROOT="/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp"
-OUTPUT_ROOT="/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp"     # can be different if you want
+OUTPUT_ROOT=""          # Will default to INPUT_ROOT if not specified
 FORCE=0                 # 0: skip if exists, 1: overwrite
 VERBOSE=1
 AE_FOLDER=""            # optional: specific AE folder to process
@@ -43,6 +43,11 @@ done
 shift $((OPTIND - 1))
 if [ $# -gt 0 ]; then
   AE_FOLDER="$1"
+fi
+
+# If output not specified, default to input
+if [ -z "$OUTPUT_ROOT" ]; then
+  OUTPUT_ROOT="$INPUT_ROOT"
 fi
 
 if [ ! -d "$INPUT_ROOT" ]; then
