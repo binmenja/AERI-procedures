@@ -136,8 +136,14 @@ for daydir in "${AE_FOLDERS[@]}"; do
   # On Windows (Git Bash), convert paths to Windows format for Docker
   # Docker on Windows expects C:/Users/... not /c/Users/...
   if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-    daydir_abs=$(cygpath -w "$daydir_abs" 2>/dev/null || echo "$daydir_abs" | sed 's|^/\([a-z]\)/|\1:/|')
-    outdir_abs=$(cygpath -w "$outdir_abs" 2>/dev/null || echo "$outdir_abs" | sed 's|^/\([a-z]\)/|\1:/|')
+    # Use cygpath if available, otherwise use sed
+    if command -v cygpath &> /dev/null; then
+      daydir_abs=$(cygpath -w "$daydir_abs")
+      outdir_abs=$(cygpath -w "$outdir_abs")
+    else
+      daydir_abs=$(echo "$daydir_abs" | sed 's|^/\([a-z]\)/|\U\1:/|')
+      outdir_abs=$(echo "$outdir_abs" | sed 's|^/\([a-z]\)/|\U\1:/|')
+    fi
     # Use forward slashes (Docker accepts both on Windows)
     daydir_abs="${daydir_abs//\\//}"
     outdir_abs="${outdir_abs//\\//}"
