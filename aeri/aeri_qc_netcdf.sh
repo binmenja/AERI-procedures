@@ -161,11 +161,13 @@ for daydir in "${AE_FOLDERS[@]}"; do
       outdir_mount=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
       log "  [DEBUG] Mount paths: $daydir_mount and $outdir_mount"
       
-      # Use /c/path:/c/path format which Docker for Windows understands
+      # Bypass entrypoint on Windows - call python directly
       docker run --rm \
+        --entrypoint python \
         -v "$daydir_mount:$daydir_mount" \
         -v "$outdir_mount:$outdir_mount" \
-        "$AERI_IMG" quality_control.py "$daydir_mount" -o "$outdir_mount" -vv
+        "$AERI_IMG" \
+        quality_control.py "$daydir_mount" -o "$outdir_mount" -vv
     else
       docker run --rm \
         -v "$daydir_abs:$daydir_abs" \
@@ -189,12 +191,13 @@ for daydir in "${AE_FOLDERS[@]}"; do
 
     log "  NetCDF: running dmv_to_netcdf.py"
     
-    # On Windows, use /c/path format for Docker volume mounts
+    # On Windows, use /c/path format and bypass entrypoint
     if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
       daydir_mount=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
       outdir_mount=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
       
       docker run --rm \
+        --entrypoint python \
         -v "$daydir_mount:$daydir_mount" \
         -v "$outdir_mount:$outdir_mount" \
         "$AERI_IMG" \

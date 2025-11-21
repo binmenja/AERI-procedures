@@ -181,19 +181,21 @@ for daydir in "${AE_FOLDERS[@]}"; do
   # Build docker command array and append extra args only if present to avoid
   # injecting an empty string argument which confuses cal_val.py's arg parser.
   
-  # On Windows, use /c/path format for Docker volume mounts
+  # On Windows, use /c/path format and bypass entrypoint
   if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
     daydir_mount=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
     outdir_mount=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
     
-    DOCKER_CMD=("$AERI_IMG" cal_val.py "$daydir_mount" -o "$outdir_mount" -vv)
+    DOCKER_CMD=(cal_val.py "$daydir_mount" -o "$outdir_mount" -vv)
     if [ ${#CALVAL_EXTRA_ARGS[@]} -gt 0 ]; then
       DOCKER_CMD+=("${CALVAL_EXTRA_ARGS[@]}")
     fi
     
     docker run --rm \
+      --entrypoint python \
       -v "$daydir_mount:$daydir_mount" \
       -v "$outdir_mount:$outdir_mount" \
+      "$AERI_IMG" \
       "${DOCKER_CMD[@]}"
   else
     DOCKER_CMD=("$AERI_IMG" cal_val.py "$daydir_abs" -o "$outdir_abs" -vv)
