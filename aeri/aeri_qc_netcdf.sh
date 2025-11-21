@@ -162,38 +162,34 @@ for daydir in "${AE_FOLDERS[@]}"; do
       log "  [DEBUG] Mount paths: $daydir_mount and $outdir_mount"
       
       # Use MSYS_NO_PATHCONV to prevent Git Bash from converting container paths
-      # Bypass entrypoint.sh and use Python directly to avoid binary file execution issues
+      # Use default container entrypoint which properly configures the Python environment
       if [ "$FORCE" -eq 1 ]; then
         MSYS_NO_PATHCONV=1 docker run --rm \
-          --entrypoint /aeri_armory_env/bin/python3 \
           -v "$daydir_mount:$daydir_mount" \
           -v "$outdir_mount:$outdir_mount" \
           "$AERI_IMG" \
-          /aeri_armory/quality_control.py "$daydir_mount" -o "$outdir_mount" -vv -f
+          quality_control.py "$daydir_mount" -o "$outdir_mount" -vv -f
       else
         MSYS_NO_PATHCONV=1 docker run --rm \
-          --entrypoint /aeri_armory_env/bin/python3 \
           -v "$daydir_mount:$daydir_mount" \
           -v "$outdir_mount:$outdir_mount" \
           "$AERI_IMG" \
-          /aeri_armory/quality_control.py "$daydir_mount" -o "$outdir_mount" -vv
+          quality_control.py "$daydir_mount" -o "$outdir_mount" -vv
       fi
     else
-      # Non-Windows: use explicit Python entrypoint for consistency
+      # Non-Windows: use default container entrypoint
       if [ "$FORCE" -eq 1 ]; then
         docker run --rm \
-          --entrypoint /aeri_armory_env/bin/python3 \
           -v "$daydir_abs:$daydir_abs" \
           -v "$outdir_abs:$outdir_abs" \
           "$AERI_IMG" \
-          /aeri_armory/quality_control.py "$daydir_abs" -o "$outdir_abs" -vv -f
+          quality_control.py "$daydir_abs" -o "$outdir_abs" -vv -f
       else
         docker run --rm \
-          --entrypoint /aeri_armory_env/bin/python3 \
           -v "$daydir_abs:$daydir_abs" \
           -v "$outdir_abs:$outdir_abs" \
           "$AERI_IMG" \
-          /aeri_armory/quality_control.py "$daydir_abs" -o "$outdir_abs" -vv
+          quality_control.py "$daydir_abs" -o "$outdir_abs" -vv
       fi
     fi
   fi
@@ -213,24 +209,22 @@ for daydir in "${AE_FOLDERS[@]}"; do
 
     log "  NetCDF: running dmv_to_netcdf.py"
     
-    # On Windows, use /c/path format and bypass entrypoint.sh
+    # On Windows, use /c/path format with default entrypoint
     if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
       daydir_mount=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
       outdir_mount=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
       
       MSYS_NO_PATHCONV=1 docker run --rm \
-        --entrypoint /aeri_armory_env/bin/python3 \
         -v "$daydir_mount:$daydir_mount" \
         -v "$outdir_mount:$outdir_mount" \
         "$AERI_IMG" \
-        /aeri_armory/dmv_to_netcdf.py "$daydir_mount" -o "$outdir_mount" -vv
+        dmv_to_netcdf.py "$daydir_mount" -o "$outdir_mount" -vv
     else
       docker run --rm \
-        --entrypoint /aeri_armory_env/bin/python3 \
         -v "$daydir_abs:$daydir_abs" \
         -v "$outdir_abs:$outdir_abs" \
         "$AERI_IMG" \
-        /aeri_armory/dmv_to_netcdf.py "$daydir_abs" -o "$outdir_abs" -vv
+        dmv_to_netcdf.py "$daydir_abs" -o "$outdir_abs" -vv
     fi
   fi
 
