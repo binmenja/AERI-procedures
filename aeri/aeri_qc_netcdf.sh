@@ -94,10 +94,20 @@ for daydir in "${AE_FOLDERS[@]}"; do
   # Convert to absolute paths for Docker volume mounts
   daydir_abs=$(cd "$daydir" && pwd)
   outdir_abs=$(cd "$outdir" && pwd)
+  
+  # On Windows (Git Bash), convert paths to Windows format for Docker
+  # Docker on Windows expects C:/Users/... not /c/Users/...
+  if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
+    daydir_abs=$(cygpath -w "$daydir_abs" 2>/dev/null || echo "$daydir_abs" | sed 's|^/\([a-z]\)/|\1:/|')
+    outdir_abs=$(cygpath -w "$outdir_abs" 2>/dev/null || echo "$outdir_abs" | sed 's|^/\([a-z]\)/|\1:/|')
+    # Use forward slashes (Docker accepts both on Windows)
+    daydir_abs="${daydir_abs//\\//}"
+    outdir_abs="${outdir_abs//\\//}"
+  fi
 
   log "=== Processing $daybase ==="
-  log "  Input:  $daydir"
-  log "  Output: $outdir"
+  log "  Input:  $daydir_abs"
+  log "  Output: $outdir_abs"
 
   # ---------- 1) QC: look for any *QC.nc in outdir ----------
   qc_exists=$(find "$outdir" -maxdepth 1 -type f -name "*QC.nc" | head -n 1 || true)
