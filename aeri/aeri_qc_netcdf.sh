@@ -152,18 +152,12 @@ for daydir in "${AE_FOLDERS[@]}"; do
     log "    -v \"$daydir_abs\":\"$daydir_abs\""
     log "    -v \"$outdir_abs\":\"$outdir_abs\""
 
-    # On Windows Git Bash, Docker needs /host/path:/container/path format
-    # Both sides need Unix-style paths for Git Bash to not mangle them
+    # On Windows, use cmd.exe to run Docker to avoid Git Bash entrypoint issues
     if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-      # Convert C:/path to /c/path for both host and container
-      daydir_unix=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
-      outdir_unix=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
-      log "  [DEBUG] Unix format: $daydir_unix and $outdir_unix"
-      
-      MSYS_NO_PATHCONV=1 docker run --rm \
-        -v "$daydir_unix:$daydir_unix" \
-        -v "$outdir_unix:$outdir_unix" \
-        "${DOCKER_CMD[@]}"
+      log "  [DEBUG] Using cmd.exe to run Docker on Windows"
+      # Build the docker command as a string for cmd.exe
+      docker_cmd="docker run --rm -v \"$daydir_abs:$daydir_abs\" -v \"$outdir_abs:$outdir_abs\" ${DOCKER_CMD[*]}"
+      cmd.exe /c "$docker_cmd"
     else
       docker run --rm \
         -v "$daydir_abs:$daydir_abs" \
@@ -187,16 +181,10 @@ for daydir in "${AE_FOLDERS[@]}"; do
 
     log "  NetCDF: running dmv_to_netcdf.py"
     
-    # On Windows Git Bash, use Unix-style paths for Docker
+    # On Windows, use cmd.exe to run Docker
     if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-      daydir_unix=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
-      outdir_unix=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
-      
-      MSYS_NO_PATHCONV=1 docker run --rm \
-        -v "$daydir_unix:$daydir_unix" \
-        -v "$outdir_unix:$outdir_unix" \
-        "$AERI_IMG" \
-        dmv_to_netcdf.py "$daydir_unix" -o "$outdir_unix" -vv
+      docker_cmd="docker run --rm -v \"$daydir_abs:$daydir_abs\" -v \"$outdir_abs:$outdir_abs\" $AERI_IMG dmv_to_netcdf.py \"$daydir_abs\" -o \"$outdir_abs\" -vv"
+      cmd.exe /c "$docker_cmd"
     else
       docker run --rm \
         -v "$daydir_abs:$daydir_abs" \

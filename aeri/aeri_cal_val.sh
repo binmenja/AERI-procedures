@@ -181,20 +181,14 @@ for daydir in "${AE_FOLDERS[@]}"; do
   # Build docker command array and append extra args only if present to avoid
   # injecting an empty string argument which confuses cal_val.py's arg parser.
   
-  # On Windows Git Bash, use Unix-style paths for Docker
+  # On Windows, use cmd.exe to run Docker to avoid Git Bash entrypoint issues
   if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
-    daydir_unix=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
-    outdir_unix=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|/\L\1|')
-    
-    DOCKER_CMD=("$AERI_IMG" cal_val.py "$daydir_unix" -o "$outdir_unix" -vv)
+    # Build command with extra args if present
+    docker_cmd="docker run --rm -v \"$daydir_abs:$daydir_abs\" -v \"$outdir_abs:$outdir_abs\" $AERI_IMG cal_val.py \"$daydir_abs\" -o \"$outdir_abs\" -vv"
     if [ ${#CALVAL_EXTRA_ARGS[@]} -gt 0 ]; then
-      DOCKER_CMD+=("${CALVAL_EXTRA_ARGS[@]}")
+      docker_cmd="$docker_cmd ${CALVAL_EXTRA_ARGS[*]}"
     fi
-    
-    MSYS_NO_PATHCONV=1 docker run --rm \
-      -v "$daydir_unix:$daydir_unix" \
-      -v "$outdir_unix:$outdir_unix" \
-      "${DOCKER_CMD[@]}"
+    cmd.exe /c "$docker_cmd"
   else
     DOCKER_CMD=("$AERI_IMG" cal_val.py "$daydir_abs" -o "$outdir_abs" -vv)
     if [ ${#CALVAL_EXTRA_ARGS[@]} -gt 0 ]; then
