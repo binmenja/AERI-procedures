@@ -185,9 +185,18 @@ for daydir in "${AE_FOLDERS[@]}"; do
     DOCKER_CMD+=("${CALVAL_EXTRA_ARGS[@]}")
   fi
 
+  # Use Windows-compatible Docker volume format if on Windows
+  if [[ "$(uname -s)" =~ ^(MSYS|MINGW) ]]; then
+    daydir_docker=$(echo "$daydir_abs" | sed 's|^\([A-Z]\):|//\L\1|')
+    outdir_docker=$(echo "$outdir_abs" | sed 's|^\([A-Z]\):|//\L\1|')
+  else
+    daydir_docker="$daydir_abs"
+    outdir_docker="$outdir_abs"
+  fi
+
   docker run --rm \
-    -v "$daydir_abs":"$daydir_abs" \
-    -v "$outdir_abs":"$outdir_abs" \
+    -v "$daydir_docker":"$daydir_abs" \
+    -v "$outdir_docker":"$outdir_abs" \
     "${DOCKER_CMD[@]}"
 
   log ""
