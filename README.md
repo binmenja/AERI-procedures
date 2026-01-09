@@ -61,7 +61,7 @@ which matlab
   - For each day it runs two steps inside a Docker image:
     1. `quality_control.py` to generate QC output (produces `*QC.nc`).
     2. `dmv_to_netcdf.py` to convert DMV files to `.nc` files.
-  - Key options: `-i INPUT_ROOT`, `-o OUTPUT_ROOT`, `-f` (force overwrite), `-q` (quiet).
+  - Key options: `-a Process all AE* folders in input directory`,`-i INPUT_ROOT`, `-o OUTPUT_ROOT`, `-f` (force overwrite), `-q` (quiet).
   - Optional positional argument: path to a specific AE folder to process.
 
 - `aeri/aeri_cal_val.sh` — Run calibration/blackbody (cal_val.py) over day folders
