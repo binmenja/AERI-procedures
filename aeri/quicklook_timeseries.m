@@ -97,6 +97,13 @@ end
 % Convert to datetime
 dt = datetime(all_times, 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC');
 
+% Calculate Brightness Temperatures
+% rad_to_bt expects (wnum x spectra), so we transpose radiance vectors
+all_bt_co2 = rad_to_bt(bands.co2, all_rad_co2')';
+all_bt_window = rad_to_bt(bands.window, all_rad_window')';
+all_bt_o3 = rad_to_bt(bands.o3, all_rad_o3')';
+all_bt_h2o = rad_to_bt(bands.h2o, all_rad_h2o')';
+
 % Create figure
 fig = figure('Position', [100, 100, 1200, 900]);
 
@@ -171,10 +178,79 @@ if isempty(filepath)
     output_dir = dir(fullfile(root_dir, '**', 'output'));
     if ~isempty(output_dir)
         output_file = fullfile(output_dir(1).folder, output_dir(1).name, [name, ext]);
+        [filepath, name, ext] = fileparts(output_file);
     end
 end
 saveas(fig, output_file)
-fprintf('Figure saved to: %s\n', output_file);
+fprintf('Radiance Figure saved to: %s\n', output_file);
+
+fig_bt = figure('Position', [150, 150, 1200, 900]);
+
+% Plot CO2 band
+subplot(4, 1, 1)
+hold on
+plot(dt, all_bt_co2, 'b.', 'MarkerSize', 4)
+if any(flagged_idx)
+    plot(dt(flagged_idx), all_bt_co2(flagged_idx), 'r.', 'MarkerSize', 4)
+end
+ylabel('BT (K)')
+title(sprintf('CO_2 Band (%.1f cm^{-1})', bands.co2))
+legend('Valid', 'QC Flagged', 'Location', 'best')
+grid on
+box on
+set(gca, 'XTickLabel', [],'fontSize', 15)
+
+% Plot atmospheric window
+subplot(4, 1, 2)
+hold on
+plot(dt, all_bt_window, 'b.', 'MarkerSize', 4)
+if any(flagged_idx)
+    plot(dt(flagged_idx), all_bt_window(flagged_idx), 'r.', 'MarkerSize', 4)
+end
+ylabel('BT (K)')
+title(sprintf('Atmospheric Window (%.1f cm^{-1})', bands.window))
+legend('Valid', 'QC Flagged', 'Location', 'best')
+grid on
+box on
+set(gca, 'XTickLabel', [],'fontSize', 15)
+
+% Plot O3 band
+subplot(4, 1, 3)
+hold on
+plot(dt, all_bt_o3, 'b.', 'MarkerSize', 4)
+if any(flagged_idx)
+    plot(dt(flagged_idx), all_bt_o3(flagged_idx), 'r.', 'MarkerSize', 4)
+end
+ylabel('BT (K)')
+title(sprintf('O_3 Band (%.1f cm^{-1})', bands.o3))
+legend('Valid', 'QC Flagged', 'Location', 'best')
+grid on
+box on
+set(gca, 'XTickLabel', [],'fontSize', 15)
+
+% Plot H2O band
+subplot(4, 1, 4)
+hold on
+plot(dt, all_bt_h2o, 'b.', 'MarkerSize', 4)
+if any(flagged_idx)
+    plot(dt(flagged_idx), all_bt_h2o(flagged_idx), 'r.', 'MarkerSize', 4)
+end
+ylabel('BT (K)')
+title(sprintf('H_2O Band (%.1f cm^{-1})', bands.h2o))
+xlabel('Time (UTC)')
+legend('Valid', 'QC Flagged', 'Location', 'best')
+grid on
+box on
+set(gca, 'fontSize', 15)
+datetick('x', 'HH:MM', 'keeplimits')
+
+% Add overall title
+sgtitle('AERI Brightness Temperature Time Series - Key Spectral Bands', 'FontSize', 15, 'FontWeight', 'bold')
+
+% Save BT figure
+output_file_bt = fullfile(filepath, [name, '_bt', ext]);
+saveas(fig_bt, output_file_bt)
+fprintf('BT Figure saved to: %s\n', output_file_bt);
 
 fprintf('Quicklook time-series complete. Total observations: %d\n', length(all_times));
 end

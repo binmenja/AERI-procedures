@@ -11,7 +11,7 @@ AE_FOLDER=""            # optional: specific AE folder to process
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-f] [-q] [AE_FOLDER]
+Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-f] [-q] [-a] [AE_FOLDER]
 
 Loop over AEYYMMDD folders and:
   1) Run AERI QC (quality_control.py)
@@ -22,19 +22,22 @@ Options:
   -o OUTPUT_ROOT  Root directory for outputs (default: same as INPUT_ROOT)
   -f              Force overwrite (pass -f to QC, delete existing .nc)
   -q              Quiet (less verbose)
+  -a              Process all AE* folders found in INPUT_ROOT
 
 Positional argument:
   AE_FOLDER       Optional path to specific AEYYMMDD folder to process.
-                  If not provided, processes the most recent AE* folder in INPUT_ROOT.
+                  If not provided, processes the most recent AE* folder in INPUT_ROOT (unless -a is used).
 EOF
 }
 
-while getopts "i:o:fqh" opt; do
+PROCESS_ALL=0
+while getopts "i:o:fqha" opt; do
   case "$opt" in
     i) INPUT_ROOT="$OPTARG" ;;
     o) OUTPUT_ROOT="$OPTARG" ;;
     f) FORCE=1 ;;
     q) VERBOSE=0 ;;
+    a) PROCESS_ALL=1 ;;
     h) usage; exit 0 ;;
     *) usage; exit 1 ;;
   esac
@@ -72,6 +75,18 @@ if [ -n "$AE_FOLDER" ]; then
     exit 1
   fi
   AE_FOLDERS=("$AE_FOLDER")
+elif [ "$PROCESS_ALL" -eq 1 ]; then
+  # Process all AE* folders
+  AE_FOLDERS=()
+  while IFS= read -r folder; do
+    AE_FOLDERS+=("$folder")
+  done < <(find "$INPUT_ROOT" -maxdepth 1 -type d -name "AE*" | sort)
+
+  if [ "${#AE_FOLDERS[@]}" -eq 0 ]; then
+    echo "ERROR: No AE* folders found in '$INPUT_ROOT'" >&2
+    exit 1
+  fi
+  log "Selected ${#AE_FOLDERS[@]} folders for processing."
 else
   # No folder provided: find the most recent AE* folder in INPUT_ROOT
   # Sort by name (AEYYMMDD format sorts chronologically) and take the last one

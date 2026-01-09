@@ -42,6 +42,10 @@ for t = 1:length(target_times)
     found_spectra(t).rad_filtered = [];
     found_spectra(t).std_all = [];
     found_spectra(t).std_filtered = [];
+    found_spectra(t).bt_all = [];
+    found_spectra(t).bt_filtered = [];
+    found_spectra(t).bt_std_all = [];
+    found_spectra(t).bt_std_filtered = [];
     found_spectra(t).n_spectra = 0;
     found_spectra(t).n_filtered = 0;
     found_spectra(t).flags_raised = {};
@@ -122,18 +126,30 @@ for i = 1:length(aeri_files)
                 found_spectra(t).n_spectra = n_in_window;
                 
                 % Average all spectra in window
-                found_spectra(t).rad_all = mean(rad(:, in_window), 2);
-                found_spectra(t).std_all = std(rad(:, in_window), 0, 2);
+                rad_window = rad(:, in_window);
+                bt_window = rad_to_bt(wnum, rad_window);
+                
+                found_spectra(t).rad_all = mean(rad_window, 2);
+                found_spectra(t).std_all = std(rad_window, 0, 2);
+                found_spectra(t).bt_all = mean(bt_window, 2);
+                found_spectra(t).bt_std_all = std(bt_window, 0, 2);
                 
                 % Average only non-flagged spectra
                 unflagged_in_window = in_window & ~qc_flags;
                 if any(unflagged_in_window)
-                    found_spectra(t).rad_filtered = mean(rad(:, unflagged_in_window), 2);
-                    found_spectra(t).std_filtered = std(rad(:, unflagged_in_window), 0, 2);
+                    rad_filt_window = rad(:, unflagged_in_window);
+                    bt_filt_window = rad_to_bt(wnum, rad_filt_window);
+                    
+                    found_spectra(t).rad_filtered = mean(rad_filt_window, 2);
+                    found_spectra(t).std_filtered = std(rad_filt_window, 0, 2);
+                    found_spectra(t).bt_filtered = mean(bt_filt_window, 2);
+                    found_spectra(t).bt_std_filtered = std(bt_filt_window, 0, 2);
                     found_spectra(t).n_filtered = sum(unflagged_in_window);
                 else
                     found_spectra(t).rad_filtered = NaN(size(wnum));
                     found_spectra(t).std_filtered = NaN(size(wnum));
+                    found_spectra(t).bt_filtered = NaN(size(wnum));
+                    found_spectra(t).bt_std_filtered = NaN(size(wnum));
                     found_spectra(t).n_filtered = 0;
                 end
                 
@@ -273,7 +289,93 @@ if isempty(filepath)
     end
 end
 saveas(fig, output_file)
-fprintf('Figure saved to: %s\n', output_file);
+fprintf('Radiance figure saved to: %s\n', output_file);
+
+[filepath, name, ext] = fileparts(output_file);
+
+fig_bt = figure('Position', [150, 150, 1400, 300*n_times]);
+
+plot_idx = 1;
+for t = 1:length(target_times)
+    if ~found_spectra(t).found
+        continue;
+    end
+    
+    wnum = found_spectra(t).wnum;
+    bt_all = found_spectra(t).bt_all;
+    bt_filtered = found_spectra(t).bt_filtered;
+    bt_std_all = found_spectra(t).bt_std_all;
+    bt_std_filtered = found_spectra(t).bt_std_filtered;
+    actual_time = found_spectra(t).actual_time;
+    n_spectra = found_spectra(t).n_spectra;
+    n_filtered = found_spectra(t).n_filtered;
+    flags_raised = found_spectra(t).flags_raised;
+    
+    % Top panel: All data (BT)
+    subplot(n_times, 2, plot_idx)
+    if avg_window_minutes > 0 && n_spectra > 1
+        % Plot mean with shaded standard deviation
+        hold on
+        fill([wnum; flipud(wnum)], [bt_all + bt_std_all; flipud(bt_all - bt_std_all)], ...
+            'b', 'FaceAlpha', 0.2, 'EdgeColor', 'none')
+        plot(wnum, bt_all, 'b-', 'LineWidth', 1.5)
+        hold off
+        title_str = sprintf('All Data (n=%d) - %s UTC', n_spectra, datestr(actual_time, 'yyyy-mm-dd HH:MM:SS'));
+    else
+        plot(wnum, bt_all, 'b-', 'LineWidth', 1)
+        title_str = sprintf('All Data - %s UTC', datestr(actual_time, 'yyyy-mm-dd HH:MM:SS'));
+    end
+    xlabel('Wavenumber (cm^{-1})')
+    ylabel('Brightness Temp (K)')
+    title(title_str)
+    grid on
+    xlim([min(wnum), max(wnum)])
+    
+    % Bottom panel: QC filtered (BT)
+    subplot(n_times, 2, plot_idx + 1)
+    if all(isnan(bt_filtered)) || n_filtered == 0
+        text(0.5, 0.5, {'ALL DATA QC FLAGGED', sprintf('Flags: %s', strjoin(flags_raised, ', '))}, ...
+            'HorizontalAlignment', 'center', 'FontSize', 12, 'Color', 'r', ...
+            'Units', 'normalized')
+        xlabel('Wavenumber (cm^{-1})')
+        ylabel('Brightness Temp (K)')
+        xlim([min(wnum), max(wnum)])
+    else
+        if avg_window_minutes > 0 && n_filtered > 1
+            % Plot mean with shaded standard deviation
+            hold on
+            fill([wnum; flipud(wnum)], [bt_filtered + bt_std_filtered; flipud(bt_filtered - bt_std_filtered)], ...
+                'g', 'FaceAlpha', 0.2, 'EdgeColor', 'none')
+            plot(wnum, bt_filtered, 'g-', 'LineWidth', 1.5)
+            hold off
+            title_str = sprintf('QC Filtered (n=%d/%d) - %s UTC', n_filtered, n_spectra, datestr(actual_time, 'yyyy-mm-dd HH:MM:SS'));
+        else
+            plot(wnum, bt_filtered, 'g-', 'LineWidth', 1)
+            title_str = sprintf('QC Filtered - %s UTC', datestr(actual_time, 'yyyy-mm-dd HH:MM:SS'));
+        end
+        xlabel('Wavenumber (cm^{-1})')
+        ylabel('Brightness Temp (K)')
+        title(title_str)
+        grid on
+        xlim([min(wnum), max(wnum)])
+        
+        % Add text annotation with flags if any were raised
+        if ~isempty(flags_raised)
+            text(0.02, 0.98, sprintf('Flags raised: %s', strjoin(flags_raised, ', ')), ...
+                'Units', 'normalized', 'VerticalAlignment', 'top', ...
+                'FontSize', 8, 'Color', 'r', 'Interpreter', 'none')
+        end
+    end
+    
+    plot_idx = plot_idx + 2;
+end
+
+sgtitle('AERI Brightness Temperature: Unfiltered vs QC Filtered', 'FontSize', 20, 'FontWeight', 'bold');
+
+% Save BT figure
+output_file_bt = fullfile(filepath, [name, '_bt', ext]);
+saveas(fig_bt, output_file_bt)
+fprintf('BT figure saved to: %s\n', output_file_bt);
 
 fprintf('Quicklook spectra complete.\n');
 end

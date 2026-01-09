@@ -1,0 +1,14 @@
+rad = ncread('/Users/benjaminriot/Desktop/ponex_aeri_data_as_20260109/FTP/AE260106/output/groundbased_aeri_mcgillUNK_unknown_68.1832_133.2840_20260106t000648z_20260106t213023z_001.nc','RADIANCE.SKY');
+wv = ncread('/Users/benjaminriot/Desktop/ponex_aeri_data_as_20260109/FTP/AE260106/output/groundbased_aeri_mcgillUNK_unknown_68.1832_133.2840_20260106t000648z_20260106t213023z_001.nc','WAVENUMBER');
+
+addpath('/Users/benjaminriot/Library/CloudStorage/OneDrive-McGillUniversity/research/nsa_site/matlib')
+
+bt = planck_aeri(wv,rad);
+
+[val, idx]= min(bt(312,:));
+% plot(wv,bt)
+
+plot(wv,bt(:,idx),'LineWidth',2)
+format_plot;
+ylabel('Brightness temperature [K]')
+xlabel('Wavenumbers [cm-1]')

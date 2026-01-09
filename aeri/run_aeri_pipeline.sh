@@ -10,10 +10,11 @@ OUTPUT_ROOT=""  # Will default to INPUT_ROOT if not specified
 DO_CALVAL="false"
 FORCE="false"
 DO_GEOMS="true"
+PROCESS_ALL="false"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-c] [-f] [--no-geoms]
+Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-c] [-f] [--no-geoms] [-a]
 
 Run full AERI pipeline via MATLAB:
   1. QC and DMV->NetCDF conversion (aeri_qc_netcdf.sh)
@@ -26,11 +27,12 @@ Options:
   -c              Run calibration/blackbody processing
   -f              Force overwrite existing files
   --no-geoms      Skip GEOMS netCDF conversion
+  -a              Process all AE* folders in INPUT_ROOT (default: processes most recent only)
   -h              Show this help message
 
 Examples:
-  $(basename "$0")                    # Process with defaults
-  $(basename "$0") -c                 # Include calibration
+  $(basename "$0")                    # Process with defaults (most recent folder)
+  $(basename "$0") -c -a              # Include calibration, process all folders
   $(basename "$0") -i ./data -f       # Custom input, force overwrite
 EOF
 }
@@ -55,6 +57,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-geoms)
       DO_GEOMS="false"
+      shift
+      ;;
+    -a)
+      PROCESS_ALL="true"
       shift
       ;;
     -h|--help)
@@ -100,7 +106,7 @@ else
 fi
 
 # Build MATLAB command
-MATLAB_CMD="cd('${SCRIPT_DIR_WIN}'); run_aeri_pipeline('${INPUT_ROOT_WIN}', '${OUTPUT_ROOT_WIN}', ${DO_CALVAL}, ${FORCE}, ${DO_GEOMS}); exit"
+MATLAB_CMD="cd('${SCRIPT_DIR_WIN}'); run_aeri_pipeline('${INPUT_ROOT_WIN}', '${OUTPUT_ROOT_WIN}', ${DO_CALVAL}, ${FORCE}, ${DO_GEOMS}, ${PROCESS_ALL}); exit"
 
 echo "========================================="
 echo "Running AERI Pipeline"
@@ -110,6 +116,7 @@ echo "Output:      ${OUTPUT_ROOT_WIN}"
 echo "CalVal:      ${DO_CALVAL}"
 echo "Force:       ${FORCE}"
 echo "GEOMS:       ${DO_GEOMS}"
+echo "Process All: ${PROCESS_ALL}"
 echo "========================================="
 echo ""
 

@@ -9,10 +9,11 @@ VERBOSE=1
 RECORD_RANGE=""
 SEPARATE=1
 AE_FOLDER=""            # optional: specific AE folder to process
+PROCESS_ALL=0
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-f] [-r \"START END\"] [-s] [-q] [AE_FOLDER]
+Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-f] [-r \"START END\"] [-s] [-q] [-a] [AE_FOLDER]
 
 Run cal_val.py over AEYYMMDD folders (AERI calibration / 3rd BB step).
 
@@ -23,14 +24,15 @@ Options:
   -r \"START END\"          Record range for cal_val.py (optional)
   -s                      Separate: plot each record individually (passes -s to cal_val.py)
   -q                      Quiet
+  -a                      Process all AE* folders in INPUT_ROOT
 
 Positional argument:
   AE_FOLDER               Optional path to specific AEYYMMDD folder to process.
-                          If not provided, processes the most recent AE* folder in INPUT_ROOT.
+                          If not provided, processes the most recent AE* folder in INPUT_ROOT (unless -a is used).
 EOF
 }
 
-while getopts "i:o:fr:qhs" opt; do
+while getopts "i:o:fr:qhsa" opt; do
   case "$opt" in
     i) INPUT_ROOT="$OPTARG" ;;
     o) OUTPUT_ROOT="$OPTARG" ;;
@@ -38,6 +40,7 @@ while getopts "i:o:fr:qhs" opt; do
     r) RECORD_RANGE="$OPTARG" ;;
     q) VERBOSE=0 ;;
     s) SEPARATE=1 ;;
+    a) PROCESS_ALL=1 ;;
     h) usage; exit 0 ;;
     *) usage; exit 1 ;;
   esac
@@ -53,34 +56,6 @@ if [ -z "$OUTPUT_ROOT" ]; then
   OUTPUT_ROOT="$INPUT_ROOT"
 fi
 
-usage() {
-  cat <<EOF
-Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-f] [-r \"START END\"] [-s] [-q]
-
-Run cal_val.py over AEYYMMDD folders (AERI calibration / 3rd BB step).
-
-Options:
-  -i INPUT_ROOT           Root directory with AEYYMMDD folders (default: /Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp)
-  -o OUTPUT_ROOT          Root directory for outputs (default: same as INPUT_ROOT)
-  -f                      Force overwrite (delete existing bbcal_* in outdir)
-  -r "START END"          Record range for cal_val.py (optional)
-  -s                      Separate: plot each record individually (passes -s to cal_val.py)
-  -q                      Quiet
-EOF
-}
-
-while getopts "i:o:fr:qhs" opt; do
-  case "$opt" in
-    i) INPUT_ROOT="$OPTARG" ;;
-    o) OUTPUT_ROOT="$OPTARG" ;;
-    f) FORCE=1 ;;
-    r) RECORD_RANGE="$OPTARG" ;;
-    q) VERBOSE=0 ;;
-    s) SEPARATE=1 ;;
-    h) usage; exit 0 ;;
-    *) usage; exit 1 ;;
-  esac
-done
 
 # If OUTPUT_ROOT not explicitly set, default to INPUT_ROOT
 if [ "$OUTPUT_ROOT" = "/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp" ] && [ "$INPUT_ROOT" != "/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp" ]; then
@@ -111,6 +86,18 @@ if [ -n "$AE_FOLDER" ]; then
     exit 1
   fi
   AE_FOLDERS=("$AE_FOLDER")
+elif [ "$PROCESS_ALL" -eq 1 ]; then
+  # Process all AE* folders
+  AE_FOLDERS=()
+  while IFS= read -r folder; do
+    AE_FOLDERS+=("$folder")
+  done < <(find "$INPUT_ROOT" -maxdepth 1 -type d -name "AE*" | sort)
+
+  if [ "${#AE_FOLDERS[@]}" -eq 0 ]; then
+    echo "ERROR: No AE* folders found in '$INPUT_ROOT'" >&2
+    exit 1
+  fi
+  log "Selected ${#AE_FOLDERS[@]} folders for processing."
 else
   # No folder provided: find the most recent AE* folder in INPUT_ROOT
   # Sort by name (AEYYMMDD format sorts chronologically) and take the last one

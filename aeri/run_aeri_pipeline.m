@@ -1,5 +1,5 @@
-function run_aeri_pipeline(inputRoot, outputRoot, doCalVal, force, doGEOMS)
-% run_aeri_pipeline("/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp", "/data/aeri_output", true, false, true)
+function run_aeri_pipeline(inputRoot, outputRoot, doCalVal, force, doGEOMS, processAll)
+% run_aeri_pipeline("/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp", "/data/aeri_output", true, false, true, false)
 %
 % Inputs:
 %   inputRoot  - Root directory with AEYYMMDD folders
@@ -7,12 +7,14 @@ function run_aeri_pipeline(inputRoot, outputRoot, doCalVal, force, doGEOMS)
 %   doCalVal   - Run calibration/blackbody processing (default: false)
 %   force      - Force overwrite existing files (default: false)
 %   doGEOMS    - Run GEOMS netCDF conversion (default: true)
+%   processAll - Process all AE* folders (default: false)
 
 if nargin < 1 || isempty(inputRoot), inputRoot = "/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp"; end
 if nargin < 2 || isempty(outputRoot), outputRoot = inputRoot; end
 if nargin < 3 || isempty(doCalVal),   doCalVal   = false;      end
 if nargin < 4 || isempty(force),      force      = false;     end
 if nargin < 5 || isempty(doGEOMS),    doGEOMS    = true;      end
+if nargin < 6 || isempty(processAll), processAll = false;     end
 
 % Detect if we're on Windows
 isWindows = ispc;
@@ -53,8 +55,13 @@ if force
     forceFlag = "-f";
 end
 
-qc_cmd = sprintf('./aeri_qc_netcdf.sh -i "%s" -o "%s" %s', ...
-                 inputRoot, outputRoot, forceFlag);
+allFlag = "";
+if processAll
+    allFlag = "-a";
+end
+
+qc_cmd = sprintf('./aeri_qc_netcdf.sh -i "%s" -o "%s" %s %s', ...
+                 inputRoot, outputRoot, forceFlag, allFlag);
 fprintf('Running QC + netCDF:\n  %s\n', qc_cmd);
 if isWindows
     full_cmd = sprintf('%s"%s"', shellPrefix, qc_cmd);
@@ -67,8 +74,8 @@ if status ~= 0
 end
 
 if doCalVal
-    cal_cmd = sprintf('./aeri_cal_val.sh -i "%s" -o "%s" %s', ...
-                      inputRoot, outputRoot, forceFlag);
+    cal_cmd = sprintf('./aeri_cal_val.sh -i "%s" -o "%s" %s %s', ...
+                      inputRoot, outputRoot, forceFlag, allFlag);
     fprintf('Running cal/BB:\n  %s\n', cal_cmd);
     if isWindows
         full_cmd = sprintf('%s"%s"', shellPrefix, cal_cmd);
