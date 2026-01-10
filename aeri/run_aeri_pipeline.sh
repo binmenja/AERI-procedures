@@ -11,15 +11,17 @@ DO_CALVAL="false"
 FORCE="false"
 DO_GEOMS="true"
 PROCESS_ALL="false"
+DO_QUICKLOOK="false"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-c] [-f] [--no-geoms] [-a]
+Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-c] [-f] [--no-geoms] [-a] [-p]
 
 Run full AERI pipeline via MATLAB:
   1. QC and DMV->NetCDF conversion (aeri_qc_netcdf.sh)
   2. Calibration/blackbody processing (optional, aeri_cal_val.sh)
   3. GEOMS netCDF conversion (processDailyAERIdata_GEOMS.m)
+  4. Quicklook generation (optional, quicklook_timeseries.m)
 
 Options:
   -i INPUT_ROOT   Root directory with AEYYMMDD folders (default: ${SCRIPT_DIR}/temp)
@@ -28,12 +30,13 @@ Options:
   -f              Force overwrite existing files
   --no-geoms      Skip GEOMS netCDF conversion
   -a              Process all AE* folders in INPUT_ROOT (default: processes most recent only)
+  -p              Generate quicklook plots
   -h              Show this help message
 
 Examples:
   $(basename "$0")                    # Process with defaults (most recent folder)
   $(basename "$0") -c -a              # Include calibration, process all folders
-  $(basename "$0") -i ./data -f       # Custom input, force overwrite
+  $(basename "$0") -i ./data -f -p    # Custom input, force overwrite, with plots
 EOF
 }
 
@@ -61,6 +64,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -a)
       PROCESS_ALL="true"
+      shift
+      ;;
+    -p|--quicklook)
+      DO_QUICKLOOK="true"
       shift
       ;;
     -h|--help)
@@ -106,7 +113,7 @@ else
 fi
 
 # Build MATLAB command
-MATLAB_CMD="cd('${SCRIPT_DIR_WIN}'); run_aeri_pipeline('${INPUT_ROOT_WIN}', '${OUTPUT_ROOT_WIN}', ${DO_CALVAL}, ${FORCE}, ${DO_GEOMS}, ${PROCESS_ALL}); exit"
+MATLAB_CMD="cd('${SCRIPT_DIR_WIN}'); run_aeri_pipeline('${INPUT_ROOT_WIN}', '${OUTPUT_ROOT_WIN}', ${DO_CALVAL}, ${FORCE}, ${DO_GEOMS}, ${PROCESS_ALL}, ${DO_QUICKLOOK}); exit"
 
 echo "========================================="
 echo "Running AERI Pipeline"
@@ -117,6 +124,7 @@ echo "CalVal:      ${DO_CALVAL}"
 echo "Force:       ${FORCE}"
 echo "GEOMS:       ${DO_GEOMS}"
 echo "Process All: ${PROCESS_ALL}"
+echo "Quicklook:   ${DO_QUICKLOOK}"
 echo "========================================="
 echo ""
 

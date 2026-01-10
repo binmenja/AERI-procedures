@@ -74,11 +74,9 @@ for i = 1:length(aeri_files)
         all_flag_names = {}; % Store actual flag names from file
         
         try
-            % Read embedded QC flags from GEOMS file
             flag_details = ncread(aeri_file, 'FLAG.MEASUREMENT.QUALITY');
             flag_names_raw = ncread(aeri_file, 'FLAG.NAMES');
             
-            % Parse flag names (they're stored as char array)
             n_flags = size(flag_names_raw, 1);
             all_flag_names = cell(n_flags, 1);
             for k = 1:n_flags

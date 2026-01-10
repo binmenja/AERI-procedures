@@ -12,7 +12,6 @@ function [] = processDailyAERIdata_GEOMS(root_dir, mat, nc)
 % overall_flag_percentages - percentage of flags across all files
 close all; 
 
-
 % Constants
 MOPD = 1.03702765; % cm
 
@@ -60,7 +59,7 @@ for i = 1:length(aeri_files)
         
         % Determine location and serial number based on latitude/longitude
         % Define known site locations with tolerance
-        tolerance = 0.1; % degrees (~10 km) - allows for GPS variation
+        tolerance = 0.5; % degrees 
         
         % Known site coordinates
         gault_lat = 45.54;
@@ -69,8 +68,8 @@ for i = 1:length(aeri_files)
         nrc_lon = -75.62;
         burnside_lat = 45.52;
         burnside_lon = -73.63;
-        inuvik_lat = 68.3039;  % 68°18'14"N
-        inuvik_lon = -133.4831; % 133°28'59"W
+        inuvik_lat = 68.1832;  
+        inuvik_lon = -133.2840; 
         radar_lat = 45.4241;
         radar_lon = -73.9377;
         
@@ -162,7 +161,6 @@ for i = 1:length(aeri_files)
                 continue;
             end
 
-            %% --- Optional: sanity print for traceability ---
             fprintf('\n[FILE SELECTION]\n');
             fprintf('  Site:        %s\n', location);
             fprintf('  AERI file:   %s\n', aeri_file);
@@ -174,8 +172,6 @@ for i = 1:length(aeri_files)
         aeri_timeoff = ncread(aeri_file, 'time_offset');
         rad = ncread(aeri_file, 'mean_rad');
         wnum = ncread(aeri_file, 'wnum1');
-        % Note: lat, lon, and altitude already read earlier for location detection
-
 
         % Read QC data
         qc_basetime = ncread(qc_file, 'base_time');
@@ -195,10 +191,10 @@ for i = 1:length(aeri_files)
         qc_seconds = double(qc_timeoff) + double(qc_basetime);
         sum_seconds = double(sum_timeoff) + double(sum_basetime);
 
-        % Debug: Check if timestamps look reasonable
-        fprintf('Sample AERI timestamp: %.0f (should be around 1.7e9 for 2024)\n', aeri_seconds(1));
-        sample_date = datetime(aeri_seconds(1), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC');
-        fprintf('Sample date: %s\n', datestr(sample_date));
+        % % Debug: Check if timestamps look reasonable
+        % fprintf('Sample AERI timestamp: %.0f (should be around 1.7e9 for 2024)\n', aeri_seconds(1));
+        % sample_date = datetime(aeri_seconds(1), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC');
+        % fprintf('Sample date: %s\n', datestr(sample_date));
 
         % Check if timestamps are in milliseconds instead of seconds
         if aeri_seconds(1) > 2e12  % If timestamp is larger than year 2033 in seconds
@@ -234,10 +230,7 @@ for i = 1:length(aeri_files)
 
         % Use AERI timestamps as the reference
         common_seconds = aeri_seconds(pos_aeri);
-        % size(common_seconds)
-        % size(pos_qc)
-        % size(pos_sum)
-        % Keep only the matched timestamps in all datasets
+        % Keep only the matched timestamps 
         rad = rad(:, pos_aeri);
         dates = datetime(common_seconds, 'ConvertFrom', 'posixtime');
         skyNENch1 = skyNENch1(:, pos_sum);
@@ -247,7 +240,7 @@ for i = 1:length(aeri_files)
         ABB_apex_temp = ABB_apex_temp(:);  % Forces it to column vector
         ABB_apex_temp_2D = repmat(ABB_apex_temp.', length(wnum), 1);
         Rad_ABB = planck_aeri_t_to_b(wnum, ABB_apex_temp_2D);
-        absoluteCalError = 0.01.*Rad_ABB./3; % 1% of the radiance is  3 sigma
+        absoluteCalError = 0.01.*Rad_ABB./3; % 1% of the radiance is 3 sigma
 
         % Interpolate skyNENch1 and respSpecAVGch1 to match AERI data wnum resolution (2655 channels for standard range AERI, 2904 for extended)
         skyNENch1_interp = interp1(sum_wnum, skyNENch1, wnum, 'linear', 'extrap');
@@ -321,7 +314,7 @@ for i = 1:length(aeri_files)
         if nc
             % Save data in netCDF format
             % Construct GEOMS-compliant file name
-            location = upper(location); % Here the location variable has to be the location of the instrument, I used "Gault", "NRC" and '"burnside"
+            location = upper(location); % Here the location variable has to be the location of the instrument, I used "Gault", "NRC", "Burnside", "Inuvik", "Radar", or "unknown"
             affiliation_acronym = 'MCGILL'; %
             data_location = location; % e.g., GAULT, NRC, etc.
             data_file_version = '001'; % Version of the data file
@@ -351,7 +344,7 @@ for i = 1:length(aeri_files)
 
             % Construct GEOMS-compliant filename per Meriem's format
             nc_output_filename = fullfile(nc_output_dir, sprintf('%s_%s_%s_%s_%s_%s_%s.nc', ...
-                'groundbased', ... % Fixed discipline part
+                'groundbased', ... 
                 'aeri', ... % Instrument type
                 sprintf('mcgill%s', serial), ... % Affiliation + serial: mcgill125, mcgill122, mcgill124
                 lower(data_location), ... % e.g., gault
@@ -362,7 +355,6 @@ for i = 1:length(aeri_files)
                 delete(nc_output_filename);
                 fprintf('Deleted existing file: %s\n', nc_output_filename);
             end
-            % You can ignore
             if length(nc_output_filename) > 256
                 warning('FILE_NAME exceeds 256 characters; truncating');
                 nc_output_filename = nc_output_filename(1:256);

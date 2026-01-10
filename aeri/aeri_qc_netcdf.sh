@@ -163,7 +163,7 @@ for daydir in "${AE_FOLDERS[@]}"; do
   else
     if [ "$FORCE" -eq 1 ]; then
       log "  NetCDF: FORCE enabled - deleting old .nc files in $outdir"
-      find "$outdir" -maxdepth 1 -type f -name "*.nc" -delete || true
+      find "$outdir" -maxdepth 1 -type f -name "*.nc" ! -name "*QC.nc" -delete || true
     fi
 
     log "  NetCDF: running dmv_to_netcdf.py"

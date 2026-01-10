@@ -18,7 +18,7 @@ end
 
 % Define spectral bands of interest (wavenumbers in cm^-1)
 bands = struct();
-bands.co2 = 667;      % CO2 15 μm band
+bands.co2 = 670;      % CO2 15 μm band
 bands.window = 990;   % Atmospheric window
 bands.o3 = 1042;      % O3 9.6 μm band
 bands.h2o = 1595;     % H2O 6.3 μm band
@@ -165,8 +165,6 @@ grid on
 box on
 set(gca, 'fontSize', 15)
 datetick('x', 'HH:MM', 'keeplimits')
-
-
 
 % Add overall title
 sgtitle('AERI Radiance Time Series - Key Spectral Bands', 'FontSize', 15, 'FontWeight', 'bold')
