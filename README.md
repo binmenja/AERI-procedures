@@ -34,7 +34,7 @@ sudo usermod -aG docker $USER
 
 **Windows:**
 
-*Windows is not yet supported.* The scripts are designed for macOS and Linux environments.
+*Partial support.* The scripts can run on Windows if Git Bash is installed (usually located in `C:\Program Files\Git`). The MATLAB wrapper `run_aeri_pipeline.m` will attempt to automatically detect the bash executable. It is recommended to run the scripts from within MATLAB or a Git Bash terminal.
 
 #### Pulling the AERI Docker Image
 
@@ -75,36 +75,31 @@ which matlab
 
   - Bash script that runs the full pipeline: QC/netCDF conversion, optional calibration, and GEOMS conversion.
   - Automatically calls `run_aeri_pipeline.m` via MATLAB.
-  - Key options: `-i INPUT_ROOT`, `-o OUTPUT_ROOT`, `-c` (include calibration), `-f` (force overwrite), `--no-geoms` (skip GEOMS conversion).
+  - Key options: `-i INPUT_ROOT`, `-o OUTPUT_ROOT`, `-c` (include calibration), `-f` (force overwrite), `--no-geoms` (skip GEOMS conversion), `-p` (generate quicklook plots), `-d` (include engineering temperatures).
 
 - `aeri/run_aeri_pipeline.m` — MATLAB wrapper
 
   - Called by `run_aeri_pipeline.sh` or can be used directly in MATLAB.
   - Runs the shell scripts and then calls `processDailyAERIdata_GEOMS.m` for GEOMS conversion.
+  - Generates quicklook plots if `doQuicklook` is true.
 
 - `aeri/processDailyAERIdata_GEOMS.m` — GEOMS netCDF conversion
 
   - Converts AERI netCDF files to GEOMS-compliant format.
   - Automatically detects location from lat/lon coordinates in files.
   - Supported locations: Gault, NRC, Burnside, Inuvik, Radar.
+  - Optional `debugTemp` flag to include engineering temperatures in the output.
 
 - `aeri/quicklook_timeseries.m` — Time-series quicklook plots
 
-  - Creates time-series plots of radiance in key spectral bands (CO2, O3, window, H2O).
-  - Shows QC-flagged data in red for quality assessment.
-  - Reads QC flags directly from GEOMS files (FLAG.MEASUREMENT.QUALITY variable).
-  - Automatically saves plots to the output folder when given just a filename.
-  - Usage: `quicklook_timeseries('../aeri_proc', 'timeseries.png')`
+  - Creates time-series plots of radiance in key spectral bands (CO2, O3, Window, H2O).
+  - Useful for a quick visualization of the day's data quality and cloud conditions.
+  - Inputs: `root_dir`, `output_file` (optional).
 
-- `aeri/quicklook_spectra.m` — Spectral quicklook plots
+- `aeri/quicklook_spectra.m` — Spectra quicklook plots
 
-  - Plots full radiance spectra at selected times with comparison of unfiltered vs QC-filtered data.
-  - Reads QC flags directly from GEOMS files and shows which specific flags were raised.
-  - Supports averaging over time windows for reduced noise.
-  - Automatically saves plots to the output folder when given just a filename.
-  - Usage: `quicklook_spectra('../aeri_proc', {'2024-04-08 12:00:00', '2024-04-08 18:30:00'}, 'spectra.png', 5)`
-    - Arguments: root_dir, time_selections (cell array), output_file (optional), avg_window_minutes (optional, default: 0)
-    - avg_window_minutes: If > 0, averages all spectra within ± this window around target times
+  - Plots radiance spectra with and without QC filtering for specific times.
+  - Inputs: `root_dir`, `time_selections` (cell array), `output_file` (optional), `avg_window_minutes` (optional).
 
 ## Key configuration
 
@@ -142,6 +137,16 @@ cd aeri/
 ./run_aeri_pipeline.sh -i ../aeri_proc -o /path/to/output
 ```
 
+**Generate quicklooks:**
+```bash
+./run_aeri_pipeline.sh -i ../aeri_proc -p
+```
+
+**Include engineering temperatures:**
+```bash
+./run_aeri_pipeline.sh -i ../aeri_proc -d
+```
+
 **Skip GEOMS conversion:**
 ```bash
 ./run_aeri_pipeline.sh -i ../aeri_proc --no-geoms
@@ -168,34 +173,26 @@ cd aeri/
 ./aeri_cal_val.sh -i ../aeri_proc
 
 # Process specific folder
-./aeri_cal_val.sh -i ../aeri_proc ../aeri_proc/AE240408
-
-# With record range and separate plots
-./aeri_cal_val.sh -i ../aeri_proc -r "1 10" -s
-```
-
-**3) GEOMS conversion (from MATLAB):**
-
-```matlab
-% Process all AE folders in directory
-processDailyAERIdata_GEOMS('../aeri_proc', false, true)
-% arguments: root_dir, mat (save .mat), nc (save GEOMS netCDF)
+./aeri_cal_val.sh -i ../aeri_proc ../aeri_proc/AE240408, false)
+% arguments: root_dir, mat (save .mat), nc (save GEOMS netCDF), debugTemp
 
 % Or use the full pipeline wrapper
-run_aeri_pipeline('../aeri_proc', '../aeri_proc', false, false, true)
-% arguments: inputRoot, outputRoot, doCalVal, force, doGEOMS
+run_aeri_pipeline('../aeri_proc', '../aeri_proc', false, false, true, false, true, false)
+% arguments: inputRoot, outputRoot, doCalVal, force, doGEOMS, processAll, doQuicklook, doDebugTemp
 ```
 
 **4) Quicklook plots (from MATLAB):**
 
 ```matlab
-% Time-series of radiance in key spectral bands
-% Saves automatically to output folder with default filename if not specified
-quicklook_timeseries('../aeri_proc')
+% Time-series quicklook
+% Generates a plot of radiance in key bands
 quicklook_timeseries('../aeri_proc', 'timeseries.png')
 
-% Radiance spectra at specific times (comparing filtered vs unfiltered)
-% Shows which QC flags were raised for each time window
+% Spectra quicklook
+% Plots spectra at specific times (with optional averaging window)
+times = {'2024-04-08 12:00:00', '2024-04-08 18:30:00'};
+quicklook_spectra('../aeri_proc', times, 'spectra.png', 30)
+% arguments: root_dir, time_selections, output_file, avg_window_minutes
 % Saves automatically to output folder with default filename if not specified
 quicklook_spectra('../aeri_proc', {'2024-04-08 12:00:00', '2024-04-08 18:30:00'})
 quicklook_spectra('../aeri_proc', {'2024-04-08 12:00:00', '2024-04-08 18:30:00'}, 'spectra.png')
