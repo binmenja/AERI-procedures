@@ -21,7 +21,28 @@ c2=1.438833; % [ K / cm-1 ]
 
 t = NaN(length(wavnum),size(B,2));
 for i = 1:size(B,2)
-    t(:,i) = c2 .* wavnum ./ log((c1 .* wavnum.^3 ./ (B(:,i) ./ 1000)) + 1);
+    % Radiance B is in mW/m2/sr/cm-1, convert to W/m2/sr/cm-1 by /1000
+    L = B(:,i) ./ 1000;
+    
+    % Handle negative or zero radiance which causes log() to produce complex numbers (or NaN/Inf)
+    % Planck function inverse logic: T = c2*v / ln( (c1*v^3/L) + 1 )
+    % If (c1*v^3/L + 1) <= 0, we get complex numbers or NaNs. This happens if L is negative/zero
+    % We should treat these as invalid or clip them.
+    
+    % Mask valid radiances
+    valid_mask = L > 0;
+    
+    % Compute T only for valid L
+    if any(valid_mask)
+        term = (c1 .* wavnum(valid_mask).^3 ./ L(valid_mask)) + 1;
+        % Ensure term > 0 just in case
+        valid_term = term > 0;
+        
+        final_mask = false(size(valid_mask));
+        final_mask(valid_mask) = valid_term;
+        
+        t(final_mask,i) = c2 .* wavnum(final_mask) ./ log(term(valid_term));
+    end
 end
 % When doing it on arrays of wavenumbers and temperature
 %B = [];

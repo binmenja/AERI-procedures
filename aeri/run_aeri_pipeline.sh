@@ -12,10 +12,11 @@ FORCE="false"
 DO_GEOMS="true"
 PROCESS_ALL="false"
 DO_QUICKLOOK="false"
+DEBUG_TEMP="false"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-c] [-f] [--no-geoms] [-a] [-p]
+Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-c] [-f] [--no-geoms] [-a] [-p] [-d]
 
 Run full AERI pipeline via MATLAB:
   1. QC and DMV->NetCDF conversion (aeri_qc_netcdf.sh)
@@ -31,6 +32,7 @@ Options:
   --no-geoms      Skip GEOMS netCDF conversion
   -a              Process all AE* folders in INPUT_ROOT (default: processes most recent only)
   -p              Generate quicklook plots
+  -d              Include engineering temperature variables in NetCDF
   -h              Show this help message
 
 Examples:
@@ -68,6 +70,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -p|--quicklook)
       DO_QUICKLOOK="true"
+      shift
+      ;;
+    -d|--debug-temp)
+      DEBUG_TEMP="true"
       shift
       ;;
     -h|--help)
@@ -113,7 +119,7 @@ else
 fi
 
 # Build MATLAB command
-MATLAB_CMD="cd('${SCRIPT_DIR_WIN}'); run_aeri_pipeline('${INPUT_ROOT_WIN}', '${OUTPUT_ROOT_WIN}', ${DO_CALVAL}, ${FORCE}, ${DO_GEOMS}, ${PROCESS_ALL}, ${DO_QUICKLOOK}); exit"
+MATLAB_CMD="cd('${SCRIPT_DIR_WIN}'); run_aeri_pipeline('${INPUT_ROOT_WIN}', '${OUTPUT_ROOT_WIN}', ${DO_CALVAL}, ${FORCE}, ${DO_GEOMS}, ${PROCESS_ALL}, ${DO_QUICKLOOK}, ${DEBUG_TEMP}); exit"
 
 echo "========================================="
 echo "Running AERI Pipeline"
@@ -125,6 +131,7 @@ echo "Force:       ${FORCE}"
 echo "GEOMS:       ${DO_GEOMS}"
 echo "Process All: ${PROCESS_ALL}"
 echo "Quicklook:   ${DO_QUICKLOOK}"
+echo "Debug Temp:  ${DEBUG_TEMP}"
 echo "========================================="
 echo ""
 

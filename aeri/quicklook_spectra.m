@@ -22,6 +22,7 @@ end
 
 % Convert time selections to datetime
 target_times = datetime(time_selections, 'InputFormat', 'yyyy-MM-dd HH:mm:ss', 'TimeZone', 'UTC');
+date_str = datestr(target_times(1), 'yyyy-mm-dd');
 
 % Get GEOMS files only
 aeri_files = dir(fullfile(root_dir, '**', 'groundbased_aeri_*.nc'));
@@ -275,7 +276,7 @@ for t = 1:length(target_times)
     plot_idx = plot_idx + 2;
 end
 
-sgtitle('AERI Radiance Spectra: Unfiltered vs QC Filtered', 'FontSize', 20, 'FontWeight', 'bold');
+sgtitle(sprintf('AERI Radiance Spectra (%s): Unfiltered vs QC Filtered', date_str), 'FontSize', 20, 'FontWeight', 'bold');
 
 % Save figure to output folder
 [filepath, name, ext] = fileparts(output_file);
@@ -368,7 +369,7 @@ for t = 1:length(target_times)
     plot_idx = plot_idx + 2;
 end
 
-sgtitle('AERI Brightness Temperature: Unfiltered vs QC Filtered', 'FontSize', 20, 'FontWeight', 'bold');
+sgtitle(sprintf('AERI Brightness Temperature (%s): Unfiltered vs QC Filtered', date_str), 'FontSize', 20, 'FontWeight', 'bold');
 
 % Save BT figure
 output_file_bt = fullfile(filepath, [name, '_bt', ext]);

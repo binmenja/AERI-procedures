@@ -37,6 +37,10 @@ all_rad_window = [];
 all_rad_o3 = [];
 all_rad_h2o = [];
 all_flags = [];
+all_air_temp = [];
+all_window_temp = [];
+all_sce_temp = [];
+all_outside_temp = [];
 
 % Process each file
 for i = 1:length(aeri_files)
@@ -66,6 +70,21 @@ for i = 1:length(aeri_files)
             warning('Could not read QC flags from GEOMS file: %s', ME.message);
         end
         
+        % Read engineering temperatures if available
+        air_temp = nan(length(aeri_seconds), 1);
+        window_temp = nan(length(aeri_seconds), 1);
+        sce_temp = nan(length(aeri_seconds), 1);
+        outside_temp = nan(length(aeri_seconds), 1);
+        
+        try
+            air_temp = ncread(aeri_file, 'airNearInterferometerTemp');
+            window_temp = ncread(aeri_file, 'interferometerWindowTemp');
+            sce_temp = ncread(aeri_file, 'SCEtemp');
+            outside_temp = ncread(aeri_file, 'outsideAirTemp');
+        catch
+            % Variables might not exist, keep as NaNs
+        end
+
         % Extract radiance at specific wavenumbers
         [~, idx_co2] = min(abs(wnum - bands.co2));
         [~, idx_window] = min(abs(wnum - bands.window));
@@ -84,6 +103,10 @@ for i = 1:length(aeri_files)
         all_rad_o3 = [all_rad_o3; rad_o3];
         all_rad_h2o = [all_rad_h2o; rad_h2o];
         all_flags = [all_flags; qc_flags];
+        all_air_temp = [all_air_temp; air_temp];
+        all_window_temp = [all_window_temp; window_temp];
+        all_sce_temp = [all_sce_temp; sce_temp];
+        all_outside_temp = [all_outside_temp; outside_temp];
         
     catch ME
         warning('Error processing %s: %s', aeri_files(i).name, ME.message);
@@ -96,6 +119,7 @@ end
 
 % Convert to datetime
 dt = datetime(all_times, 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC');
+date_str = datestr(dt(1), 'yyyy-mm-dd');
 
 % Calculate Brightness Temperatures
 % rad_to_bt expects (wnum x spectra), so we transpose radiance vectors
@@ -167,7 +191,7 @@ set(gca, 'fontSize', 15)
 datetick('x', 'HH:MM', 'keeplimits')
 
 % Add overall title
-sgtitle('AERI Radiance Time Series - Key Spectral Bands', 'FontSize', 15, 'FontWeight', 'bold')
+sgtitle(sprintf('AERI Radiance Time Series - %s', date_str), 'FontSize', 15, 'FontWeight', 'bold')
 
 % Save figure to output folder
 [filepath, name, ext] = fileparts(output_file);
@@ -243,12 +267,81 @@ set(gca, 'fontSize', 15)
 datetick('x', 'HH:MM', 'keeplimits')
 
 % Add overall title
-sgtitle('AERI Brightness Temperature Time Series - Key Spectral Bands', 'FontSize', 15, 'FontWeight', 'bold')
+sgtitle(sprintf('AERI Brightness Temperature Time Series - %s', date_str), 'FontSize', 15, 'FontWeight', 'bold')
 
 % Save BT figure
 output_file_bt = fullfile(filepath, [name, '_bt', ext]);
 saveas(fig_bt, output_file_bt)
 fprintf('BT Figure saved to: %s\n', output_file_bt);
+
+% Check if we have engineering temperature data
+if any(~isnan(all_air_temp))
+    fig_eng = figure('Position', [200, 200, 1200, 900]);
+    
+    % Plot Air Temp
+    subplot(4, 1, 1)
+    hold on
+    plot(dt, all_air_temp, 'k.', 'MarkerSize', 4)
+    if any(flagged_idx)
+        plot(dt(flagged_idx), all_air_temp(flagged_idx), 'r.', 'MarkerSize', 4)
+    end
+    ylabel('Temp (K)')
+    title('Ambient Air Temperature Near Interferometer')
+    legend('Valid', 'QC Flagged', 'Location', 'best')
+    grid on
+    box on
+    set(gca, 'XTickLabel', [], 'fontSize', 15)
+    
+    % Plot Window Temp
+    subplot(4, 1, 2)
+    hold on
+    plot(dt, all_window_temp, 'k.', 'MarkerSize', 4)
+    if any(flagged_idx)
+        plot(dt(flagged_idx), all_window_temp(flagged_idx), 'r.', 'MarkerSize', 4)
+    end
+    ylabel('Temp (K)')
+    title('Interferometer Window Temperature')
+    legend('Valid', 'QC Flagged', 'Location', 'best')
+    grid on
+    box on
+    set(gca, 'XTickLabel', [], 'fontSize', 15)
+    
+    % Plot SCE Temp
+    subplot(4, 1, 3)
+    hold on
+    plot(dt, all_sce_temp, 'k.', 'MarkerSize', 4)
+    if any(flagged_idx)
+        plot(dt(flagged_idx), all_sce_temp(flagged_idx), 'r.', 'MarkerSize', 4)
+    end
+    ylabel('Temp (K)')
+    title('Signal Conditioning Electronics Temp')
+    legend('Valid', 'QC Flagged', 'Location', 'best')
+    grid on
+    box on
+    set(gca, 'XTickLabel', [], 'fontSize', 15)
+    
+    % Plot Outside Air Temp
+    subplot(4, 1, 4)
+    hold on
+    plot(dt, all_outside_temp, 'k.', 'MarkerSize', 4)
+    if any(flagged_idx)
+        plot(dt(flagged_idx), all_outside_temp(flagged_idx), 'r.', 'MarkerSize', 4)
+    end
+    ylabel('Temp (K)')
+    title('Ambient Air Temperature at Hatch Opening')
+    xlabel('Time (UTC)')
+    legend('Valid', 'QC Flagged', 'Location', 'best')
+    grid on
+    box on
+    set(gca, 'fontSize', 15)
+    datetick('x', 'HH:MM', 'keeplimits')
+    
+    sgtitle(sprintf('AERI Engineering Temperatures - %s', date_str), 'FontSize', 15, 'FontWeight', 'bold')
+    
+    output_file_eng = fullfile(filepath, [name, '_eng_temp', ext]);
+    saveas(fig_eng, output_file_eng)
+    fprintf('Engineering Temp Figure saved to: %s\n', output_file_eng);
+end
 
 fprintf('Quicklook time-series complete. Total observations: %d\n', length(all_times));
 end
