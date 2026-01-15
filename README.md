@@ -1,5 +1,7 @@
 # AERI procedures
 
+![AERI at Inuvik](aeri_125_inuvik.jpg)
+
 This repository contains small utilities and pipeline wrappers used to process AERI (Atmospheric Emitted Radiance Interferometer) data. The scripts live under the `aeri/` directory and are intended to be run locally (shell scripts) and from MATLAB. These scripts were made ahead of the PONEX field campaign to facilitate processing and enable quicklooks.
 
 ## Prerequisites
