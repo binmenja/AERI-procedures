@@ -295,13 +295,18 @@ for i = 1:length(aeri_files)
                 ref1BlackbodyApexTemp = ncread(f1_file, 'ref1BlackbodyApexTemp');
                 ref1BlackbodyBottomRimTemp = ncread(f1_file, 'ref1BlackbodyBottomRimTemp');
                 
-                % Ensure they share the common time resolution
-                [match_indices_f1, match_indices_common] = findCloseTimestamps(f1_seconds, common_seconds, max_time_diff);
-                
-                BBsupport_aligned(match_indices_common) = BBsupportStructureTemp(match_indices_f1);
-                encoder_aligned(match_indices_common) = sceneMirPosEncoder(match_indices_f1);
-                apex_aligned(match_indices_common) = ref1BlackbodyApexTemp(match_indices_f1);
-                botrim_aligned(match_indices_common) = ref1BlackbodyBottomRimTemp(match_indices_f1);
+                % Ensure they share the common time resolution using nearest-neighbor interpolation
+                % F1 files can have different timestamps, so find the closest F1 timestamp for each common_second
+                % up to a 60-second limit.
+                for t = 1:length(common_seconds)
+                    [min_diff, f1_idx] = min(abs(f1_seconds - common_seconds(t)));
+                    if min_diff <= 60
+                        BBsupport_aligned(t) = BBsupportStructureTemp(f1_idx);
+                        encoder_aligned(t) = sceneMirPosEncoder(f1_idx);
+                        apex_aligned(t) = ref1BlackbodyApexTemp(f1_idx);
+                        botrim_aligned(t) = ref1BlackbodyBottomRimTemp(f1_idx);
+                    end
+                end
             end
         end
         
