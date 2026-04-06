@@ -1,10 +1,11 @@
-function [] = processDailyAERIdata_GEOMS(root_dir, mat, nc, debugTemp)
+function [] = processDailyAERIdata_GEOMS(root_dir, mat, nc, debugTemp, doBiasVars)
 % Function to process all AERI data in the specified directory
 % Inputs:
 % root_dir - root directory containing AERI data files
 % mat - boolean flag to save data in .mat format, default off
 % nc - boolean flag to save data in netCDF (GEOMS) format
 % debugTemp - boolean flag to include additional temperature variables
+% doBiasVars - boolean flag to include bias variables
 %
 % Outputs:
 % all_rad - cleaned radiometric data
@@ -14,6 +15,7 @@ function [] = processDailyAERIdata_GEOMS(root_dir, mat, nc, debugTemp)
 close all; 
 
 if nargin < 4 || isempty(debugTemp), debugTemp = false; end 
+if nargin < 5 || isempty(doBiasVars), doBiasVars = false; end 
 
 % Constants
 MOPD = 1.03702765; % cm
@@ -22,6 +24,13 @@ MOPD = 1.03702765; % cm
 aeri_files = dir(fullfile(root_dir, '**', '*C1_rnc.nc'));
 qc_files = dir(fullfile(root_dir, '**', '*QC.nc'));
 sum_files = dir(fullfile(root_dir, '**', '*sum.nc'));
+f1_files = dir(fullfile(root_dir, '**', '*F1_cxs.nc'));
+
+% Filter out hidden/system files (starting with .) like ._ files on macOS external drives
+if ~isempty(aeri_files), aeri_files = aeri_files(~startsWith({aeri_files.name}, '.')); end
+if ~isempty(qc_files), qc_files = qc_files(~startsWith({qc_files.name}, '.')); end
+if ~isempty(sum_files), sum_files = sum_files(~startsWith({sum_files.name}, '.')); end
+if ~isempty(f1_files), f1_files = f1_files(~startsWith({f1_files.name}, '.')); end
 
 
 % Define the specific flag names to track
@@ -104,71 +113,83 @@ for i = 1:length(aeri_files)
         fprintf('  Lat: %.4f°, Lon: %.4f°, Alt: %.1f m\n', lat, lon, altitude);
         fprintf('  WARNING: Verify lat/lon/altitude are correct if instrument was recently moved!\n');
 
-            % Extract date information from the RNC filename
-            [~, aeri_basename, ~] = fileparts(aeri_files(i).name);
-            date_part = regexp(aeri_basename, '\d+', 'match'); % all digit runs in name
+        % Extract date information from the RNC filename
+        [~, aeri_basename, ~] = fileparts(aeri_files(i).name);
+        date_part = regexp(aeri_basename, '\d+', 'match'); % all digit runs in name
 
-            if isempty(date_part)
-                warning('Could not extract date from AERI file: %s - Skipping', aeri_file);
-                continue;
+        if isempty(date_part)
+            warning('Could not extract date from AERI file: %s - Skipping', aeri_file);
+            continue;
+        end
+
+        date_part = date_part{1}; % take first match, e.g. '241003' or '20241003'
+
+        % Handle 6-digit vs 8-digit style (QC files often have yyyyMMdd)
+        if length(date_part) == 6
+            % e.g. '241003' -> '20241003' for QC
+            date_part_for_qc = ['20', date_part];
+        else
+            date_part_for_qc = date_part;
+        end
+
+        aeri_parent_folder = fileparts(aeri_files(i).folder);
+
+        %% --- Find QC file that matches date (and optionally site) ---
+        qc_file = '';
+        for j = 1:length(qc_files)
+            this_qc_fullpath = fullfile(qc_files(j).folder, qc_files(j).name);
+            qc_parent_folder = fileparts(qc_files(j).folder);
+
+            if strcmp(aeri_parent_folder, qc_parent_folder) && ...
+               contains(qc_files(j).name, [date_part_for_qc, 'QC'])
+                qc_file = this_qc_fullpath;
+                break;
             end
+        end
 
-            date_part = date_part{1}; % take first match, e.g. '241003' or '20241003'
+        if isempty(qc_file)
+            warning('No QC file found for %s at site %s on %s - Skipping', aeri_file, location, date_part_for_qc);
+            continue;
+        end
 
-            % Handle 6-digit vs 8-digit style (QC files often have yyyyMMdd)
-            if length(date_part) == 6
-                % e.g. '241003' -> '20241003' for QC
-                date_part_for_qc = ['20', date_part];
-            else
-                date_part_for_qc = date_part;
+        %% --- Find SUM file that matches date (and optionally site) ---
+        sum_file = '';
+        for j = 1:length(sum_files)
+            this_sum_fullpath = fullfile(sum_files(j).folder, sum_files(j).name);
+            sum_parent_folder = fileparts(sum_files(j).folder);
+
+            if strcmp(aeri_parent_folder, sum_parent_folder) && ...
+               contains(sum_files(j).name, [date_part, '_sum'])
+                sum_file = this_sum_fullpath;
+                break;
             end
+        end
 
-            %% --- Find QC file that matches date (and optionally site) ---
-            qc_file = '';
-            % Get the parent folder (AE*) of the current AERI file
-            aeri_parent_folder = fileparts(aeri_files(i).folder);
-            
-            for j = 1:length(qc_files)
-                this_qc_fullpath = fullfile(qc_files(j).folder, qc_files(j).name);
-                qc_parent_folder = fileparts(qc_files(j).folder);
+        if isempty(sum_file)
+            warning('No summary file found for %s at site %s on %s - Skipping', aeri_file, location, date_part);
+            continue;
+        end
 
-                % Match files from the same AE* folder and date
-                if strcmp(aeri_parent_folder, qc_parent_folder) && ...
-                   contains(qc_files(j).name, [date_part_for_qc, 'QC'])
-                    qc_file = this_qc_fullpath;
+        %% --- Find F1 file that matches date (and optionally site) ---
+        f1_file = '';
+        if doBiasVars
+            for j = 1:length(f1_files)
+                this_f1_fullpath = fullfile(f1_files(j).folder, f1_files(j).name);
+                f1_parent_folder = fileparts(f1_files(j).folder);
+
+                if strcmp(aeri_parent_folder, f1_parent_folder) && ...
+                   contains(f1_files(j).name, [date_part, 'F1'])
+                    f1_file = this_f1_fullpath;
                     break;
                 end
             end
+        end
 
-            if isempty(qc_file)
-                warning('No QC file found for %s at site %s on %s - Skipping', aeri_file, location, date_part_for_qc);
-                continue;
-            end
-
-            %% --- Find SUM file that matches date (and optionally site) ---
-            sum_file = '';
-            for j = 1:length(sum_files)
-                this_sum_fullpath = fullfile(sum_files(j).folder, sum_files(j).name);
-                sum_parent_folder = fileparts(sum_files(j).folder);
-
-                % Match files from the same AE* folder and date
-                if strcmp(aeri_parent_folder, sum_parent_folder) && ...
-                   contains(sum_files(j).name, [date_part, '_sum'])
-                    sum_file = this_sum_fullpath;
-                    break;
-                end
-            end
-
-            if isempty(sum_file)
-                warning('No summary file found for %s at site %s on %s - Skipping', aeri_file, location, date_part);
-                continue;
-            end
-
-            fprintf('\n[FILE SELECTION]\n');
-            fprintf('  Site:        %s\n', location);
-            fprintf('  AERI file:   %s\n', aeri_file);
-            fprintf('  QC file:     %s\n', qc_file);
-            fprintf('  SUM file:    %s\n\n', sum_file);
+        fprintf('\n[FILE SELECTION]\n');
+        fprintf('  Site:        %s\n', location);
+        fprintf('  AERI file:   %s\n', aeri_file);
+        fprintf('  QC file:     %s\n', qc_file);
+        fprintf('  SUM file:    %s\n\n', sum_file);
 
         % Read AERI data
         aeri_basetime = ncread(aeri_file, 'base_time');
@@ -197,14 +218,8 @@ for i = 1:length(aeri_files)
 
         % Combine base_time and time_offset to get full timestamps in seconds
         aeri_seconds = double(aeri_timeoff) + double(aeri_basetime);
-        size(aeri_seconds);
         qc_seconds = double(qc_timeoff) + double(qc_basetime);
         sum_seconds = double(sum_timeoff) + double(sum_basetime);
-
-        % % Debug: Check if timestamps look reasonable
-        % fprintf('Sample AERI timestamp: %.0f (should be around 1.7e9 for 2024)\n', aeri_seconds(1));
-        % sample_date = datetime(aeri_seconds(1), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC');
-        % fprintf('Sample date: %s\n', datestr(sample_date));
 
         % Check if timestamps are in milliseconds instead of seconds
         if aeri_seconds(1) > 2e12  % If timestamp is larger than year 2033 in seconds
@@ -240,12 +255,10 @@ for i = 1:length(aeri_files)
 
         % Use AERI timestamps as the reference
         common_seconds = aeri_seconds(pos_aeri);
-        % Keep only the matched timestamps 
         rad = rad(:, pos_aeri);
         dates = datetime(common_seconds, 'ConvertFrom', 'posixtime');
         skyNENch1 = skyNENch1(:, pos_sum);
         respSpecAVGch1 = respSpecAVGch1(:, pos_sum);
-
         ABB_apex_temp = ABB_apex_temp(pos_sum);
         
         if debugTemp
@@ -254,15 +267,51 @@ for i = 1:length(aeri_files)
             SCEtemp = SCEtemp(pos_sum);
             outsideAirTemp = outsideAirTemp(pos_sum);
         end
+
+        %% --- Bias Variables Collection and Realignment ---
+        if doBiasVars
+            % 1. Read from SUM
+            sceneMirrorTemp = ncread(sum_file, 'sceneMirrorTemp');
+            sceneMirror_aligned = sceneMirrorTemp(pos_sum);
+
+            % Setup arrays holding NaN where no match exists
+            BBsupport_aligned = nan(size(common_seconds));
+            encoder_aligned = nan(size(common_seconds));
+            apex_aligned = nan(size(common_seconds));
+            botrim_aligned = nan(size(common_seconds));
+
+            % 2. Read from F1 if it exists
+            if ~isempty(f1_file)
+                f1_basetime = ncread(f1_file, 'base_time');
+                f1_timeoff = ncread(f1_file, 'time_offset');
+                f1_seconds = double(f1_timeoff) + double(f1_basetime);
+                
+                if f1_seconds(1) > 2e12
+                    f1_seconds = f1_seconds / 1000;
+                end
+                
+                BBsupportStructureTemp = ncread(f1_file, 'BBsupportStructureTemp');
+                sceneMirPosEncoder = ncread(f1_file, 'sceneMirPosEncoder');
+                ref1BlackbodyApexTemp = ncread(f1_file, 'ref1BlackbodyApexTemp');
+                ref1BlackbodyBottomRimTemp = ncread(f1_file, 'ref1BlackbodyBottomRimTemp');
+                
+                % Ensure they share the common time resolution
+                [match_indices_f1, match_indices_common] = findCloseTimestamps(f1_seconds, common_seconds, max_time_diff);
+                
+                BBsupport_aligned(match_indices_common) = BBsupportStructureTemp(match_indices_f1);
+                encoder_aligned(match_indices_common) = sceneMirPosEncoder(match_indices_f1);
+                apex_aligned(match_indices_common) = ref1BlackbodyApexTemp(match_indices_f1);
+                botrim_aligned(match_indices_common) = ref1BlackbodyBottomRimTemp(match_indices_f1);
+            end
+        end
         
         ABB_apex_temp = ABB_apex_temp(:);  % Forces it to column vector
         ABB_apex_temp_2D = repmat(ABB_apex_temp.', length(wnum), 1);
         Rad_ABB = planck_aeri_t_to_b(wnum, ABB_apex_temp_2D);
         absoluteCalError = 0.01.*Rad_ABB./3; % 1% of the radiance is 3 sigma
 
-        % Interpolate skyNENch1 and respSpecAVGch1 to match AERI data wnum resolution (2655 channels for standard range AERI, 2904 for extended)
+        % Interpolate skyNENch1 and respSpecAVGch1 to match AERI data wnum resolution
         skyNENch1_interp = interp1(sum_wnum, skyNENch1, wnum, 'linear', 'extrap');
-
         respSpecAVGch1_interp = interp1(sum_wnum, respSpecAVGch1, wnum, 'linear', 'extrap');
 
         % Process flag statistics for this file
@@ -307,12 +356,14 @@ for i = 1:length(aeri_files)
         % Update total observations
         total_observations = total_observations + length(pos_qc);
         disp(total_observations);
+
         % Save the data for the day
         if nargin < 3
             disp('No output format specified. Saving in GEOMS format only.');
             mat = false;
             nc = true;
         end
+
         if mat
             % For .mat files, create a subdirectory in the AE folder
             aeri_parent_dir = fileparts(aeri_files(i).folder);
@@ -328,66 +379,57 @@ for i = 1:length(aeri_files)
                 'file_flag_counts', 'file_flag_percentages', 'MOPD'};
             
             if debugTemp
-                % Check if variables exist before adding to save list
-                if exist('airNearInterferometerTemp', 'var')
-                     save_vars = [save_vars, {'airNearInterferometerTemp'}];
-                end
-                if exist('interferometerWindowTemp', 'var')
-                     save_vars = [save_vars, {'interferometerWindowTemp'}];
-                end
-                if exist('SCEtemp', 'var')
-                     save_vars = [save_vars, {'SCEtemp'}];
-                end
-                if exist('outsideAirTemp', 'var')
-                     save_vars = [save_vars, {'outsideAirTemp'}];
-                end
+                if exist('airNearInterferometerTemp', 'var'), save_vars = [save_vars, {'airNearInterferometerTemp'}]; end
+                if exist('interferometerWindowTemp', 'var'), save_vars = [save_vars, {'interferometerWindowTemp'}]; end
+                if exist('SCEtemp', 'var'), save_vars = [save_vars, {'SCEtemp'}]; end
+                if exist('outsideAirTemp', 'var'), save_vars = [save_vars, {'outsideAirTemp'}]; end
+            end
+
+            if doBiasVars
+                if exist('sceneMirror_aligned', 'var'), save_vars = [save_vars, {'sceneMirror_aligned'}]; end
+                if exist('BBsupport_aligned', 'var'), save_vars = [save_vars, {'BBsupport_aligned'}]; end
+                if exist('encoder_aligned', 'var'), save_vars = [save_vars, {'encoder_aligned'}]; end
+                if exist('apex_aligned', 'var'), save_vars = [save_vars, {'apex_aligned'}]; end
+                if exist('botrim_aligned', 'var'), save_vars = [save_vars, {'botrim_aligned'}]; end
             end
 
             save(daily_output_filename, save_vars{:}, '-v7.3');
-
             fprintf('Daily AERI data saved to: %s\n', daily_output_filename);
         end
 
         if nc
-            % Save data in netCDF format
             % Construct GEOMS-compliant file name
-            location = upper(location); % Here the location variable has to be the location of the instrument, I used "Gault", "NRC", "Burnside", "Inuvik", "Radar", or "unknown"
-            affiliation_acronym = 'MCGILL'; %
-            data_location = location; % e.g., GAULT, NRC, etc.
-            data_file_version = '001'; % Version of the data file
-            data_discipline = 'ATMOSPHERIC.PHYSICS;INSITU;GROUNDBASED'; % Updated per Meriem Kacimi's feedback
-            data_source = sprintf('AERI_MCGILL%s', serial); % Use serial directly: AERI_MCGILL125, AERI_MCGILL122, AERI_MCGILL124
+            location = upper(location); % Here the location variable has to be the location of the instrument
+            affiliation_acronym = 'MCGILL'; 
+            data_location = location; 
+            data_file_version = '001'; 
+            data_discipline = 'ATMOSPHERIC.PHYSICS;INSITU;GROUNDBASED'; 
+            data_source = sprintf('AERI_MCGILL%s', serial); 
 
             % Use matched timestamps
-            time_seconds = common_seconds; % This is because I have my original time variables in seconds since Posix, see below how I convert it to the MJD2K format;
-            size(time_seconds);
+            time_seconds = common_seconds;
+            
             % Create ISO 8601 date-time strings for global attributes (GEOMS requirement)
             start_dt = datetime(time_seconds(1), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC');
             stop_dt = datetime(time_seconds(end), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC');
             start_datestr_iso = datestr(start_dt, 'yyyymmddTHHMMSSZ');
             stop_datestr_iso = datestr(stop_dt, 'yyyymmddTHHMMSSZ');
 
-            % Create filename with lowercase ISO format
             start_datestr_filename = lower(start_datestr_iso);
             stop_datestr_filename = lower(stop_datestr_iso);
 
-            % Create output directory next to the AERI file
-            % Save GEOMS files in same folder structure as input
             aeri_parent_dir = fileparts(aeri_files(i).folder); % Get AE* folder
             nc_output_dir = fullfile(aeri_parent_dir, 'output');
             if ~exist(nc_output_dir, 'dir')
                 mkdir(nc_output_dir);
             end
 
-            % Construct GEOMS-compliant filename per Meriem's format
+            % Construct GEOMS-compliant filename
             nc_output_filename = fullfile(nc_output_dir, sprintf('%s_%s_%s_%s_%s_%s_%s.nc', ...
-                'groundbased', ... 
-                'aeri', ... % Instrument type
-                sprintf('mcgill%s', serial), ... % Affiliation + serial: mcgill125, mcgill122, mcgill124
-                lower(data_location), ... % e.g., gault
-                start_datestr_filename, ... % ISO 8601 format: 20241003t000412z
-                stop_datestr_filename, ... % ISO 8601 format: 20241003t235537z
-                data_file_version)); % e.g., 001
+                'groundbased', 'aeri', sprintf('mcgill%s', serial), ...
+                lower(data_location), start_datestr_filename, ...
+                stop_datestr_filename, data_file_version)); 
+                
             if exist(nc_output_filename, 'file')
                 delete(nc_output_filename);
                 fprintf('Deleted existing file: %s\n', nc_output_filename);
@@ -398,15 +440,15 @@ for i = 1:length(aeri_files)
             end
 
             % Create and write to netCDF file
-            ncid = netcdf.create(nc_output_filename, 'NETCDF4'); % Watchout, this does not overwrite the file if it already exists and throws an error. Thus, I delete the file if it exists before creating a new one.
+            ncid = netcdf.create(nc_output_filename, 'NETCDF4'); 
 
             % Define dimensions for the variables
             time_dimid = netcdf.defDim(ncid, 'DATETIME', length(time_seconds));
             wnum_dimid = netcdf.defDim(ncid, 'WAVENUMBER', length(wnum));
-            flag_dimid = netcdf.defDim(ncid, 'FLAG_NAMES', length(flag_names)); % All AERI Armory QC flags
+            flag_dimid = netcdf.defDim(ncid, 'FLAG_NAMES', length(flag_names));
             string_dimid = netcdf.defDim(ncid, 'string_length', 256);
 
-            % Define variables (remove FLAG and RADIANCE.SKY_CLEANED)
+            % Define variables
             time_varid = netcdf.defVar(ncid, 'DATETIME', 'double', time_dimid);
             lat_varid = netcdf.defVar(ncid, 'LATITUDE', 'double', []);
             lon_varid = netcdf.defVar(ncid, 'LONGITUDE', 'double', []);
@@ -427,6 +469,14 @@ for i = 1:length(aeri_files)
                outside_temp_varid = netcdf.defVar(ncid, 'outsideAirTemp', 'double', time_dimid);
             end
 
+            if doBiasVars
+                sceneMir_id = netcdf.defVar(ncid, 'sceneMirrorTemp', 'double', time_dimid);
+                bbsup_id = netcdf.defVar(ncid, 'BBsupportStructureTemp', 'double', time_dimid);
+                enc_id = netcdf.defVar(ncid, 'sceneMirPosEncoder', 'double', time_dimid);
+                bbApex_id = netcdf.defVar(ncid, 'ref1BlackbodyApexTemp', 'double', time_dimid);
+                bbBot_id = netcdf.defVar(ncid, 'ref1BlackbodyBottomRimTemp', 'double', time_dimid);
+            end
+
             % Define variable attributes
             % DATETIME
             netcdf.putAtt(ncid, time_varid, 'VAR_NAME', 'DATETIME');
@@ -437,7 +487,6 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, time_varid, 'VAR_DATA_TYPE', 'DOUBLE');
             netcdf.putAtt(ncid, time_varid, 'VAR_UNITS', 'MJD2K');
             netcdf.putAtt(ncid, time_varid, 'VAR_SI_CONVERSION', '0;86400;s');
-            % Convert min/max times to MJD2K for valid range
             min_mjd2k = posix_to_mjd2k(min(time_seconds));
             max_mjd2k = posix_to_mjd2k(max(time_seconds));
             netcdf.putAtt(ncid, time_varid, 'VAR_VALID_MIN', sprintf('%.8f', min_mjd2k));
@@ -548,7 +597,7 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, calerror_varid, 'VAR_VALID_MAX', '1000.0');
             netcdf.putAtt(ncid, calerror_varid, 'VAR_FILL_VALUE', '-9999.0');
 
-            % FLAG.MEASUREMENT.QUALITY (now contains ALL flags)
+            % FLAG.MEASUREMENT.QUALITY
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_NAME', 'FLAG.MEASUREMENT.QUALITY');
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_DESCRIPTION', 'Detailed quality control flags');
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_NOTES', 'Binary flags for each specific test: 0 = passed, 1 = failed. User can choose which flags to apply for QC.');
@@ -574,7 +623,7 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, flag_names_varid, 'VAR_VALID_MAX', '');
             netcdf.putAtt(ncid, flag_names_varid, 'VAR_FILL_VALUE', '');
 
-            % MAXIMUM.OPTICAL.PATH.DIFFERENCE (renamed from MOPD)
+            % MAXIMUM.OPTICAL.PATH.DIFFERENCE
             netcdf.putAtt(ncid, mopd_varid, 'VAR_NAME', 'MAXIMUM.OPTICAL.PATH.DIFFERENCE');
             netcdf.putAtt(ncid, mopd_varid, 'VAR_DESCRIPTION', 'Maximum Optical Path Difference');
             netcdf.putAtt(ncid, mopd_varid, 'VAR_NOTES', 'Full Width Half Maximum = 1.2067/(2*Maximum Optical Path Difference). AERI Ideal Line Shape available upon request.');
@@ -596,11 +645,7 @@ for i = 1:length(aeri_files)
                 netcdf.putAtt(ncid, airtemp_varid, 'VAR_DEPEND', 'DATETIME');
                 netcdf.putAtt(ncid, airtemp_varid, 'VAR_DATA_TYPE', 'DOUBLE');
                 netcdf.putAtt(ncid, airtemp_varid, 'VAR_UNITS', 'degrees_Kelvin');
-                netcdf.putAtt(ncid, airtemp_varid, 'VAR_SI_CONVERSION', '0;1;K');
-                netcdf.putAtt(ncid, airtemp_varid, 'VAR_VALID_MIN', '0.0');
-                netcdf.putAtt(ncid, airtemp_varid, 'VAR_VALID_MAX', '400.0');
-                netcdf.putAtt(ncid, airtemp_varid, 'VAR_FILL_VALUE', '-9999.0');
-
+                
                 % interferometerWindowTemp
                 netcdf.putAtt(ncid, windowtemp_varid, 'VAR_NAME', 'interferometerWindowTemp');
                 netcdf.putAtt(ncid, windowtemp_varid, 'VAR_DESCRIPTION', 'Interferometer window temperature measured on the outside of the aluminum window flange');
@@ -609,10 +654,6 @@ for i = 1:length(aeri_files)
                 netcdf.putAtt(ncid, windowtemp_varid, 'VAR_DEPEND', 'DATETIME');
                 netcdf.putAtt(ncid, windowtemp_varid, 'VAR_DATA_TYPE', 'DOUBLE');
                 netcdf.putAtt(ncid, windowtemp_varid, 'VAR_UNITS', 'degrees_Kelvin');
-                netcdf.putAtt(ncid, windowtemp_varid, 'VAR_SI_CONVERSION', '0;1;K');
-                netcdf.putAtt(ncid, windowtemp_varid, 'VAR_VALID_MIN', '0.0');
-                netcdf.putAtt(ncid, windowtemp_varid, 'VAR_VALID_MAX', '400.0');
-                netcdf.putAtt(ncid, windowtemp_varid, 'VAR_FILL_VALUE', '-9999.0');
 
                 % SCEtemp
                 netcdf.putAtt(ncid, scetemp_varid, 'VAR_NAME', 'SCEtemp');
@@ -622,10 +663,6 @@ for i = 1:length(aeri_files)
                 netcdf.putAtt(ncid, scetemp_varid, 'VAR_DEPEND', 'DATETIME');
                 netcdf.putAtt(ncid, scetemp_varid, 'VAR_DATA_TYPE', 'DOUBLE');
                 netcdf.putAtt(ncid, scetemp_varid, 'VAR_UNITS', 'degrees_Kelvin');
-                netcdf.putAtt(ncid, scetemp_varid, 'VAR_SI_CONVERSION', '0;1;K');
-                netcdf.putAtt(ncid, scetemp_varid, 'VAR_VALID_MIN', '0.0');
-                netcdf.putAtt(ncid, scetemp_varid, 'VAR_VALID_MAX', '400.0');
-                netcdf.putAtt(ncid, scetemp_varid, 'VAR_FILL_VALUE', '-9999.0');
                 
                 % outsideAirTemp
                 netcdf.putAtt(ncid, outside_temp_varid, 'VAR_NAME', 'outsideAirTemp');
@@ -635,10 +672,14 @@ for i = 1:length(aeri_files)
                 netcdf.putAtt(ncid, outside_temp_varid, 'VAR_DEPEND', 'DATETIME');
                 netcdf.putAtt(ncid, outside_temp_varid, 'VAR_DATA_TYPE', 'DOUBLE');
                 netcdf.putAtt(ncid, outside_temp_varid, 'VAR_UNITS', 'degrees_Kelvin');
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_SI_CONVERSION', '0;1;K');
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_VALID_MIN', '0.0');
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_VALID_MAX', '400.0');
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_FILL_VALUE', '-9999.0');
+            end
+
+            if doBiasVars
+                netcdf.putAtt(ncid, sceneMir_id, 'VAR_NAME', 'sceneMirrorTemp');
+                netcdf.putAtt(ncid, bbsup_id, 'VAR_NAME', 'BBsupportStructureTemp');
+                netcdf.putAtt(ncid, enc_id, 'VAR_NAME', 'sceneMirPosEncoder');
+                netcdf.putAtt(ncid, bbApex_id, 'VAR_NAME', 'ref1BlackbodyApexTemp');
+                netcdf.putAtt(ncid, bbBot_id, 'VAR_NAME', 'ref1BlackbodyBottomRimTemp');
             end
 
             % Global attributes (GEOMS header information)
@@ -664,9 +705,14 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_LOCATION', data_location);
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_SOURCE', data_source);
             var_list = 'DATETIME;LATITUDE;LONGITUDE;ALTITUDE;WAVENUMBER;RADIANCE.SKY;RADIANCE.SKY_NOISE;RESPONSIVITY.SPECTRAL;RADIANCE.SKY_ERROR;FLAG.MEASUREMENT.QUALITY;FLAG.NAMES;MAXIMUM.OPTICAL.PATH.DIFFERENCE';
+            
             if debugTemp
                 var_list = [var_list ';airNearInterferometerTemp;interferometerWindowTemp;SCEtemp;outsideAirTemp'];
             end
+            if doBiasVars
+                var_list = [var_list ';sceneMirrorTemp;BBsupportStructureTemp;sceneMirPosEncoder;ref1BlackbodyApexTemp;ref1BlackbodyBottomRimTemp'];
+            end
+            
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_VARIABLES', var_list);
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_START_DATE', start_datestr_iso);
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_STOP_DATE', stop_datestr_iso);
@@ -711,6 +757,14 @@ for i = 1:length(aeri_files)
                 netcdf.putVar(ncid, windowtemp_varid, interferometerWindowTemp);
                 netcdf.putVar(ncid, scetemp_varid, SCEtemp);
                 netcdf.putVar(ncid, outside_temp_varid, outsideAirTemp);
+            end
+            
+            if doBiasVars
+                netcdf.putVar(ncid, sceneMir_id, sceneMirror_aligned);
+                netcdf.putVar(ncid, bbsup_id, BBsupport_aligned);
+                netcdf.putVar(ncid, enc_id, encoder_aligned);
+                netcdf.putVar(ncid, bbApex_id, apex_aligned);
+                netcdf.putVar(ncid, bbBot_id, botrim_aligned);
             end
 
             % Write all flag names

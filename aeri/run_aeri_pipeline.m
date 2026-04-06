@@ -1,5 +1,5 @@
-function run_aeri_pipeline(inputRoot, outputRoot, doCalVal, force, doGEOMS, processAll, doQuicklook, doDebugTemp)
-% run_aeri_pipeline("/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp", "/data/aeri_output", true, false, true, false, true, false)
+function run_aeri_pipeline(inputRoot, outputRoot, doCalVal, force, doGEOMS, processAll, doQuicklook, doDebugTemp, doBiasVars)
+% run_aeri_pipeline("/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp", "/data/aeri_output", true, false, true, false, true, false, false)
 %
 % Inputs:
 %   inputRoot  - Root directory with AEYYMMDD folders
@@ -10,6 +10,7 @@ function run_aeri_pipeline(inputRoot, outputRoot, doCalVal, force, doGEOMS, proc
 %   processAll - Process all AE* folders (default: false)
 %   doQuicklook - Run quicklook generation (default: false)
 %   doDebugTemp - Add engineering temperatures to NetCDF (default: false)
+%   doBiasVars  - Add bias identification variables to NetCDF (default: false)
 
 if nargin < 1 || isempty(inputRoot), inputRoot = "/Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp"; end
 if nargin < 2 || isempty(outputRoot), outputRoot = inputRoot; end
@@ -19,6 +20,7 @@ if nargin < 5 || isempty(doGEOMS),    doGEOMS    = true;      end
 if nargin < 6 || isempty(processAll), processAll = false;     end
 if nargin < 7 || isempty(doQuicklook), doQuicklook = false;   end
 if nargin < 8 || isempty(doDebugTemp), doDebugTemp = false;   end
+if nargin < 9 || isempty(doBiasVars), doBiasVars = false;     end
 
 % Detect if we're on Windows
 isWindows = ispc;
@@ -94,9 +96,9 @@ end
 
 if doGEOMS
     fprintf('Running GEOMS netCDF conversion:\n');
-    fprintf('  processDailyAERIdata_GEOMS(''%s'', false, true, %d)\n', outputRoot, doDebugTemp);
+    fprintf('  processDailyAERIdata_GEOMS(''%s'', false, true, %d, %d)\n', outputRoot, doDebugTemp, doBiasVars);
     try
-        processDailyAERIdata_GEOMS(outputRoot, false, true, doDebugTemp);
+        processDailyAERIdata_GEOMS(outputRoot, false, true, doDebugTemp, doBiasVars);
         fprintf('GEOMS conversion complete.\n');
     catch ME
         warning('GEOMS conversion failed:\n%s', ME.message);

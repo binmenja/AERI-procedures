@@ -107,8 +107,8 @@ fi
 for daydir in "${AE_FOLDERS[@]}"; do
   [ -d "$daydir" ] || continue
   daybase=$(basename "$daydir")
-  # Place outputs inside an "output" subdirectory of each AE folder
-  outdir="$daydir/output"
+  # Place outputs inside an "output" subdirectory of each AE folder in OUTPUT_ROOT
+  outdir="${OUTPUT_ROOT}/${daybase}/output"
   mkdir -p "$outdir"
 
   # Convert to absolute paths for Docker volume mounts
