@@ -119,7 +119,7 @@ for daydir in "${AE_FOLDERS[@]}"; do
   log "  Input:  $daydir_abs"
   log "  Output: $outdir_abs"
 
-  # ---------- 1) QC: look for any *QC.nc in outdir ----------
+  # QC: look for any *QC.nc in outdir 
   qc_exists=$(find "$outdir" -maxdepth 1 -type f -name "*QC.nc" | head -n 1 || true)
 
   if [ -n "$qc_exists" ] && [ "$FORCE" -eq 0 ]; then
@@ -153,7 +153,7 @@ for daydir in "${AE_FOLDERS[@]}"; do
     fi
   fi
 
-  # ---------- 2) DMV → netCDF: look for any converted .nc in outdir ----------
+  # DMV → netCDF: look for any converted .nc in outdir 
   # Exclude QC output files (they are named *QC.nc) so we always run the
   # DMV->NetCDF conversion even if QC produced its own netCDF file.
   nc_exists=$(find "$outdir" -maxdepth 1 -type f -name "*.nc" ! -name "*QC.nc" | head -n 1 || true)

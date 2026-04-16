@@ -2,13 +2,16 @@
 
 ![AERI at Inuvik](aeri_125_inuvik.jpg)
 
-This repository contains small utilities and pipeline wrappers used to process AERI (Atmospheric Emitted Radiance Interferometer) data. The scripts live under the `aeri/` directory and are intended to be run locally (shell scripts) and from MATLAB. These scripts were made ahead of the PONEX field campaign to facilitate processing and enable quicklooks.
+This repository contains utilities and pipeline wrappers used to process AERI (Atmospheric Emitted Radiance Interferometer) data. The scripts live under the `aeri/` directory and are intended to be run locally (shell scripts) and from MATLAB. These scripts were made ahead of the PONEX field campaign to facilitate processing and enable quicklooks, but are applicable to all McGill AERI data.
+
+**Please note this repo is experimental, and can contain bugs and/or issues. I would highly appreciate if user can provide feedback to improve the pipeline and make it more user-friendly.**
+
 
 ## Prerequisites
 
 ### Docker
 
-The processing scripts rely on a Docker image containing the AERI processing tools. You need Docker installed on your system.
+The processing scripts rely on a Docker image (AERI Armory) containing the AERI processing tools. You need Docker installed on your system.
 
 #### Installing Docker
 
@@ -36,11 +39,11 @@ sudo usermod -aG docker $USER
 
 **Windows:**
 
-*Partial support.* The scripts can run on Windows if Git Bash is installed (usually located in `C:\Program Files\Git`). The MATLAB wrapper `run_aeri_pipeline.m` will attempt to automatically detect the bash executable. It is recommended to run the scripts from within MATLAB or a Git Bash terminal.
+*Unsupported.* As of right now, the AERI Armory image can only be ran on Linux or MacOS machines.
 
 #### Pulling the AERI Docker Image
 
-The scripts use the image `gitlab.ssec.wisc.edu:5555/aeri/aeri_armory`. Pull it before running:
+The scripts use the image `gitlab.ssec.wisc.edu:5555/aeri/aeri_armory`. Although the scripts should pull it, it is good practice to pull it before running:
 
 ```bash
 docker pull gitlab.ssec.wisc.edu:5555/aeri/aeri_armory
@@ -57,16 +60,16 @@ which matlab
 
 ## Files of interest
 
-- `aeri/aeri_qc_netcdf.sh` — Run AERI QC and convert DMV files to netCDF
+- `aeri/aeri_qc_netcdf.sh` — Run AERI Quality Control (QC) and convert DMV files to netCDF
 
-  - Processes AEYYMMDD folders. If no folder is specified, automatically processes the most recent AE* folder in the input root.
+  - Processes AEYYMMDD folders. If no folder is specified, automatically processes the most recent AE* folder in the input root. Please note the AEYYMMDD folders contained in the /FTP directory are required. To make sure you provide the correct daily folder, ensure the folder contains the YYMMDDC1.RNC file.
   - For each day it runs two steps inside a Docker image:
     1. `quality_control.py` to generate QC output (produces `*QC.nc`).
     2. `dmv_to_netcdf.py` to convert DMV files to `.nc` files.
   - Key options: `-a Process all AE* folders in input directory`,`-i INPUT_ROOT`, `-o OUTPUT_ROOT`, `-f` (force overwrite), `-q` (quiet).
   - Optional positional argument: path to a specific AE folder to process.
 
-- `aeri/aeri_cal_val.sh` — Run calibration/blackbody (cal_val.py) over day folders
+- `aeri/aeri_cal_val.sh` — This script run calibration validation procedure (cal_val.py) over day folders. Unless you are intended to verify the calibration, you should not run this component of the pipeline.
 
   - Processes AEYYMMDD folders. If no folder is specified, automatically processes the most recent AE* folder in the input root.
   - Runs `cal_val.py` inside the Docker image and produces calibration outputs (e.g. files named `bbcal_*`) in each day's `output/` folder.
@@ -77,19 +80,19 @@ which matlab
 
   - Bash script that runs the full pipeline: QC/netCDF conversion, optional calibration, and GEOMS conversion.
   - Automatically calls `run_aeri_pipeline.m` via MATLAB.
-  - Key options: `-i INPUT_ROOT`, `-o OUTPUT_ROOT`, `-c` (include calibration), `-f` (force overwrite), `--no-geoms` (skip GEOMS conversion), `-p` (generate quicklook plots), `-d` (include engineering temperatures).
+  - Key options: `-i INPUT_ROOT`, `-o OUTPUT_ROOT`, `-c` (include calibration), `-f` (force overwrite), `--no-geoms` (skip GEOMS conversion), `-p` (generate quicklook plots), `-d` (include engineering temperatures, sometimes useful for troubleshooting).
 
 - `aeri/run_aeri_pipeline.m` — MATLAB wrapper
 
   - Called by `run_aeri_pipeline.sh` or can be used directly in MATLAB.
   - Runs the shell scripts and then calls `processDailyAERIdata_GEOMS.m` for GEOMS conversion.
-  - Generates quicklook plots if `doQuicklook` is true.
+  - Generates quicklook plots if `doQuicklook` is true. Please beware of file sizes if you run the pipeline for a large dataset.
 
 - `aeri/processDailyAERIdata_GEOMS.m` — GEOMS netCDF conversion
 
-  - Converts AERI netCDF files to GEOMS-compliant format.
-  - Automatically detects location from lat/lon coordinates in files.
-  - Supported locations: Gault, NRC, Burnside, Inuvik, Radar.
+  - Converts AERI netCDF files to GEOMS-compliant format. This file is highly detailed, but has the disadvantage of being heavy.
+  - Automatically detects location from lat/lon coordinates in files. If another regular location has to be added, please contact me.
+  - Supported locations: Gault, NRC (Ottawa), Burnside, Inuvik, Radar.
   - Optional `debugTemp` flag to include engineering temperatures in the output.
 
 - `aeri/quicklook_timeseries.m` — Time-series quicklook plots
@@ -107,16 +110,22 @@ which matlab
 
 - **Docker image**: Scripts use `gitlab.ssec.wisc.edu:5555/aeri/aeri_armory` (configurable via `AERI_IMG` variable).
 - **Data structure**: Each day's data should be in a folder named `AEYYMMDD/` (e.g., `AE240408/`). Outputs are written to an `output/` subdirectory under each AE folder.
-- **Location detection**: The GEOMS conversion automatically detects instrument location from the latitude/longitude metadata in the netCDF files (tolerance: 0.1°).
+- **Location detection**: The GEOMS conversion automatically detects instrument location from the latitude/longitude metadata in the netCDF files (tolerance: 0.1°). 
 
 ## Usage Examples
 
-### Complete Pipeline (Recommended)
+### Complete Pipeline 
 
 **Basic usage - process most recent folder:**
 ```bash
 cd aeri/
 ./run_aeri_pipeline.sh -i ../aeri_proc
+```
+
+**Batch processing - all subfolders in provided folder:**
+```bash
+cd aeri/
+./run_aeri_pipeline.sh -i ../aeri_proc -a
 ```
 
 **With calibration:**

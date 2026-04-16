@@ -18,7 +18,7 @@ Usage: $(basename "$0") [-i INPUT_ROOT] [-o OUTPUT_ROOT] [-f] [-r \"START END\"]
 Run cal_val.py over AEYYMMDD folders (AERI calibration / 3rd BB step).
 
 Options:
-  -i INPUT_ROOT           Root directory with AEYYMMDD folders (default: /Users/benjaminriot/Dropbox/research/field_campaigns/ponex/scripts/aeri/temp)
+  -i INPUT_ROOT           Root directory with AEYYMMDD folders (default: $INPUT_ROOT)
   -o OUTPUT_ROOT          Root directory for outputs (default: same as INPUT_ROOT)
   -f                      Force overwrite (delete existing bbcal_* in outdir)
   -r \"START END\"          Record range for cal_val.py (optional)
