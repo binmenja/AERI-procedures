@@ -17,6 +17,10 @@ close all;
 if nargin < 4 || isempty(debugTemp), debugTemp = false; end 
 if nargin < 5 || isempty(doBiasVars), doBiasVars = false; end 
 
+if doBiasVars
+    debugTemp = true; 
+end
+
 % Constants
 MOPD = 1.03702765; % cm
 
@@ -31,7 +35,6 @@ if ~isempty(aeri_files), aeri_files = aeri_files(~startsWith({aeri_files.name}, 
 if ~isempty(qc_files), qc_files = qc_files(~startsWith({qc_files.name}, '.')); end
 if ~isempty(sum_files), sum_files = sum_files(~startsWith({sum_files.name}, '.')); end
 if ~isempty(f1_files), f1_files = f1_files(~startsWith({f1_files.name}, '.')); end
-
 
 % Define the specific flag names to track
 flag_names = {
@@ -134,7 +137,6 @@ for i = 1:length(aeri_files)
 
         aeri_parent_folder = fileparts(aeri_files(i).folder);
 
-        %% --- Find QC file that matches date (and optionally site) ---
         qc_file = '';
         for j = 1:length(qc_files)
             this_qc_fullpath = fullfile(qc_files(j).folder, qc_files(j).name);
@@ -152,7 +154,6 @@ for i = 1:length(aeri_files)
             continue;
         end
 
-        %% --- Find SUM file that matches date (and optionally site) ---
         sum_file = '';
         for j = 1:length(sum_files)
             this_sum_fullpath = fullfile(sum_files(j).folder, sum_files(j).name);
@@ -170,7 +171,6 @@ for i = 1:length(aeri_files)
             continue;
         end
 
-        %% --- Find F1 file that matches date (and optionally site) ---
         f1_file = '';
         if doBiasVars
             for j = 1:length(f1_files)
@@ -268,11 +268,30 @@ for i = 1:length(aeri_files)
             outsideAirTemp = outsideAirTemp(pos_sum);
         end
 
-        %% --- Bias Variables Collection and Realignment ---
         if doBiasVars
             % 1. Read from SUM
             sceneMirrorTemp = ncread(sum_file, 'sceneMirrorTemp');
             sceneMirror_aligned = sceneMirrorTemp(pos_sum);
+
+            % 2. Read auxiliary temperatures from AERI C1 file directly
+            c1_temp_vars = {
+                'detectorTemp', 'motorDriverTemp', 'rackAmbientTemp', ...
+                'coolerExpanderTemp', 'coolerCompressorTemp', 'mirrorMotorTemp', ...
+                'airNearBBsTemp', 'HBBbottomTemp', 'HBBapexTemp', ...
+                'HBBtopTemp', 'ABBtopTemp', 'NBBbottomTemp', 'NBBapexTemp', ...
+                'calibrationHBBtemp', 'calibrationCBBtemp', 'calibrationAmbientTemp'
+            };
+            
+            bias_temps = struct();
+            for v = 1:length(c1_temp_vars)
+                try
+                    tmp_data = ncread(aeri_file, c1_temp_vars{v});
+                    bias_temps.(c1_temp_vars{v}) = tmp_data(pos_aeri);
+                catch
+                    warning('Could not read %s from AERI file. Filling with NaNs.', c1_temp_vars{v});
+                    bias_temps.(c1_temp_vars{v}) = nan(size(pos_aeri));
+                end
+            end
 
             % Setup arrays holding NaN where no match exists
             BBsupport_aligned = nan(size(common_seconds));
@@ -280,7 +299,7 @@ for i = 1:length(aeri_files)
             apex_aligned = nan(size(common_seconds));
             botrim_aligned = nan(size(common_seconds));
 
-            % 2. Read from F1 if it exists
+            % 3. Read from F1 if it exists
             if ~isempty(f1_file)
                 f1_basetime = ncread(f1_file, 'base_time');
                 f1_timeoff = ncread(f1_file, 'time_offset');
@@ -296,8 +315,6 @@ for i = 1:length(aeri_files)
                 ref1BlackbodyBottomRimTemp = ncread(f1_file, 'ref1BlackbodyBottomRimTemp');
                 
                 % Ensure they share the common time resolution using nearest-neighbor interpolation
-                % F1 files can have different timestamps, so find the closest F1 timestamp for each common_second
-                % up to a 60-second limit.
                 for t = 1:length(common_seconds)
                     [min_diff, f1_idx] = min(abs(f1_seconds - common_seconds(t)));
                     if min_diff <= 60
@@ -396,6 +413,7 @@ for i = 1:length(aeri_files)
                 if exist('encoder_aligned', 'var'), save_vars = [save_vars, {'encoder_aligned'}]; end
                 if exist('apex_aligned', 'var'), save_vars = [save_vars, {'apex_aligned'}]; end
                 if exist('botrim_aligned', 'var'), save_vars = [save_vars, {'botrim_aligned'}]; end
+                if exist('bias_temps', 'var'), save_vars = [save_vars, {'bias_temps'}]; end
             end
 
             save(daily_output_filename, save_vars{:}, '-v7.3');
@@ -404,7 +422,7 @@ for i = 1:length(aeri_files)
 
         if nc
             % Construct GEOMS-compliant file name
-            location = upper(location); % Here the location variable has to be the location of the instrument
+            location = upper(location); 
             affiliation_acronym = 'MCGILL'; 
             data_location = location; 
             data_file_version = '001'; 
@@ -480,6 +498,11 @@ for i = 1:length(aeri_files)
                 enc_id = netcdf.defVar(ncid, 'sceneMirPosEncoder', 'double', time_dimid);
                 bbApex_id = netcdf.defVar(ncid, 'ref1BlackbodyApexTemp', 'double', time_dimid);
                 bbBot_id = netcdf.defVar(ncid, 'ref1BlackbodyBottomRimTemp', 'double', time_dimid);
+                
+                c1_temp_ids = zeros(1, length(c1_temp_vars));
+                for v = 1:length(c1_temp_vars)
+                    c1_temp_ids(v) = netcdf.defVar(ncid, c1_temp_vars{v}, 'double', time_dimid);
+                end
             end
 
             % Define variable attributes
@@ -685,6 +708,16 @@ for i = 1:length(aeri_files)
                 netcdf.putAtt(ncid, enc_id, 'VAR_NAME', 'sceneMirPosEncoder');
                 netcdf.putAtt(ncid, bbApex_id, 'VAR_NAME', 'ref1BlackbodyApexTemp');
                 netcdf.putAtt(ncid, bbBot_id, 'VAR_NAME', 'ref1BlackbodyBottomRimTemp');
+                
+                for v = 1:length(c1_temp_vars)
+                    netcdf.putAtt(ncid, c1_temp_ids(v), 'VAR_NAME', c1_temp_vars{v});
+                    netcdf.putAtt(ncid, c1_temp_ids(v), 'VAR_DESCRIPTION', [c1_temp_vars{v} ' from AERI file']);
+                    netcdf.putAtt(ncid, c1_temp_ids(v), 'VAR_NOTES', '');
+                    netcdf.putAtt(ncid, c1_temp_ids(v), 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+                    netcdf.putAtt(ncid, c1_temp_ids(v), 'VAR_DEPEND', 'DATETIME');
+                    netcdf.putAtt(ncid, c1_temp_ids(v), 'VAR_DATA_TYPE', 'DOUBLE');
+                    netcdf.putAtt(ncid, c1_temp_ids(v), 'VAR_UNITS', 'degrees_Kelvin');
+                end
             end
 
             % Global attributes (GEOMS header information)
@@ -716,6 +749,9 @@ for i = 1:length(aeri_files)
             end
             if doBiasVars
                 var_list = [var_list ';sceneMirrorTemp;BBsupportStructureTemp;sceneMirPosEncoder;ref1BlackbodyApexTemp;ref1BlackbodyBottomRimTemp'];
+                for v = 1:length(c1_temp_vars)
+                    var_list = [var_list ';' c1_temp_vars{v}];
+                end
             end
             
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_VARIABLES', var_list);
@@ -770,6 +806,10 @@ for i = 1:length(aeri_files)
                 netcdf.putVar(ncid, enc_id, encoder_aligned);
                 netcdf.putVar(ncid, bbApex_id, apex_aligned);
                 netcdf.putVar(ncid, bbBot_id, botrim_aligned);
+                
+                for v = 1:length(c1_temp_vars)
+                    netcdf.putVar(ncid, c1_temp_ids(v), bias_temps.(c1_temp_vars{v}));
+                end
             end
 
             % Write all flag names
@@ -790,7 +830,6 @@ for i = 1:length(aeri_files)
             aeri_files(i).name, ME.message, getReport(ME));
     end
 end
-
 
 % Calculate overall flag percentages
 for k = 1:length(flag_names)
