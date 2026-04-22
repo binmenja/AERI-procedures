@@ -74,15 +74,15 @@ for i = 1:length(aeri_files)
         
         % Determine location and serial number based on latitude/longitude
         % Define known site locations with tolerance
-        tolerance = 0.5; % degrees 
+        tolerance = 0.2; % degrees 
         
         % Known site coordinates
         gault_lat = 45.54;
         gault_lon = -73.15;
         nrc_lat = 45.45;
         nrc_lon = -75.62;
-        burnside_lat = 45.52;
-        burnside_lon = -73.63;
+        burnside_lat = 45.5048;
+        burnside_lon = -73.5749;
         inuvik_lat = 68.1832;  
         inuvik_lon = -133.2840; 
         radar_lat = 45.4241;
