@@ -140,14 +140,12 @@ for daydir in "${AE_FOLDERS[@]}"; do
 
     if [ "$FORCE" -eq 1 ]; then
       docker run --rm \
-        -u "$(id -u):$(id -g)" \
         -v "$daydir_abs:$daydir_abs" \
         -v "$outdir_abs:$outdir_abs" \
         "$AERI_IMG" \
         quality_control.py "$daydir_abs" -o "$outdir_abs" -vv -f
     else
       docker run --rm \
-        -u "$(id -u):$(id -g)" \
         -v "$daydir_abs:$daydir_abs" \
         -v "$outdir_abs:$outdir_abs" \
         "$AERI_IMG" \
@@ -171,12 +169,13 @@ for daydir in "${AE_FOLDERS[@]}"; do
     log "  NetCDF: running dmv_to_netcdf.py"
     
     docker run --rm \
-      -u "$(id -u):$(id -g)" \
       -v "$daydir_abs:$daydir_abs" \
       -v "$outdir_abs:$outdir_abs" \
       "$AERI_IMG" \
       dmv_to_netcdf.py "$daydir_abs" -o "$outdir_abs" -vv
   fi
+
+  docker run --rm -v "$outdir_abs:$outdir_abs" --entrypoint /bin/sh "$AERI_IMG" -c "chown -R \$(id -u):\$(id -g) \"$outdir_abs\""
 
   log ""
 done

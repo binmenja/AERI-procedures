@@ -158,11 +158,12 @@ for daydir in "${AE_FOLDERS[@]}"; do
   fi
   
   docker run --rm \
-    -u "$(id -u):$(id -g)" \
     -v "$daydir_abs:$daydir_abs" \
     -v "$outdir_abs:$outdir_abs" \
     "$AERI_IMG" \
     "${DOCKER_CMD[@]}"
+
+  docker run --rm -v "$outdir_abs:$outdir_abs" --entrypoint /bin/sh "$AERI_IMG" -c "chown -R \$(id -u):\$(id -g) \"$outdir_abs\""
 
   log ""
 done
