@@ -175,7 +175,7 @@ for daydir in "${AE_FOLDERS[@]}"; do
       dmv_to_netcdf.py "$daydir_abs" -o "$outdir_abs" -vv
   fi
 
-  docker run --rm -v "$outdir_abs:$outdir_abs" --entrypoint /bin/sh "$AERI_IMG" -c "chown -R \$(id -u):\$(id -g) \"$outdir_abs\""
+  docker run --rm -v "$outdir_abs:$outdir_abs" --entrypoint /bin/sh "$AERI_IMG" -c "chown -R $(id -u):$(id -g) \"$outdir_abs\""
 
   log ""
 done
