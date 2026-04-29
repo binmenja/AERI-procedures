@@ -158,6 +158,7 @@ for daydir in "${AE_FOLDERS[@]}"; do
   fi
   
   docker run --rm \
+    -u "$(id -u):$(id -g)" \
     -v "$daydir_abs:$daydir_abs" \
     -v "$outdir_abs:$outdir_abs" \
     "$AERI_IMG" \
