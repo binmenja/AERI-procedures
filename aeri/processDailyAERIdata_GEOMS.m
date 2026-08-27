@@ -49,6 +49,9 @@ flag_names = {
     'spike_check', 'sw_responsivity_flag'
     };
 
+% Bit values for the FLAG.MEASUREMENT.QUALITY bitmask (CF flag_masks convention): 1, 2, 4, ... 2^24
+flag_masks = int32(2.^(0:length(flag_names)-1));
+
 % Initialize overall flag statistics
 overall_flag_counts = struct();
 overall_flag_percentages = struct();
@@ -208,12 +211,15 @@ for i = 1:length(aeri_files)
         respSpecAVGch1 = ncread(sum_file, 'ResponsivitySpectralAveragesCh1');
         ABB_apex_temp = ncread(sum_file, 'ABBapexTemp');
         sum_wnum = ncread(sum_file, 'wnum1');
-        
+        sceneViewDuration = ncread(sum_file, 'sceneViewDuration');
+        FFOVhalfAngle = ncread(sum_file, 'FFOVhalfAngle');
+        outsideAirTemp = ncread(sum_file, 'outsideAirTemp');
+        atmosphericPressure = ncread(sum_file, 'atmosphericPressure');
+
         if debugTemp
            airNearInterferometerTemp = ncread(sum_file, 'airNearInterferometerTemp');
            interferometerWindowTemp = ncread(sum_file, 'interferometerWindowTemp');
            SCEtemp = ncread(sum_file, 'SCEtemp');
-           outsideAirTemp = ncread(sum_file, 'outsideAirTemp');
         end
 
         % Combine base_time and time_offset to get full timestamps in seconds
@@ -260,12 +266,18 @@ for i = 1:length(aeri_files)
         skyNENch1 = skyNENch1(:, pos_sum);
         respSpecAVGch1 = respSpecAVGch1(:, pos_sum);
         ABB_apex_temp = ABB_apex_temp(pos_sum);
-        
+        sceneViewDuration = sceneViewDuration(pos_sum);
+        FFOVhalfAngle = FFOVhalfAngle(pos_sum);
+        outsideAirTemp = outsideAirTemp(pos_sum);
+        atmosphericPressure = atmosphericPressure(pos_sum);
+
+        % Full-angle field of view in mrad; constant per instrument (FFOVhalfAngle does not vary over a day)
+        radiance_fov_mrad = FFOVhalfAngle(1) * 2 * 1000;
+
         if debugTemp
             airNearInterferometerTemp = airNearInterferometerTemp(pos_sum);
             interferometerWindowTemp = interferometerWindowTemp(pos_sum);
             SCEtemp = SCEtemp(pos_sum);
-            outsideAirTemp = outsideAirTemp(pos_sum);
         end
 
         if doBiasVars
@@ -375,6 +387,9 @@ for i = 1:length(aeri_files)
             end
         end
 
+        % Combine the per-test binary flags into a single bitmask per timestamp
+        flag_bitmask = double(flag_masks) * flag_details;
+
         % Update total observations
         total_observations = total_observations + length(pos_qc);
         disp(total_observations);
@@ -398,13 +413,13 @@ for i = 1:length(aeri_files)
             save_vars = {'rad', 'dates', 'wnum', ...
                 'skyNENch1_interp', 'respSpecAVGch1_interp','absoluteCalError', ...
                 'flag_details', 'flag_names', ...
-                'file_flag_counts', 'file_flag_percentages', 'MOPD'};
-            
+                'file_flag_counts', 'file_flag_percentages', 'MOPD', ...
+                'sceneViewDuration', 'radiance_fov_mrad', 'outsideAirTemp', 'atmosphericPressure'};
+
             if debugTemp
                 if exist('airNearInterferometerTemp', 'var'), save_vars = [save_vars, {'airNearInterferometerTemp'}]; end
                 if exist('interferometerWindowTemp', 'var'), save_vars = [save_vars, {'interferometerWindowTemp'}]; end
                 if exist('SCEtemp', 'var'), save_vars = [save_vars, {'SCEtemp'}]; end
-                if exist('outsideAirTemp', 'var'), save_vars = [save_vars, {'outsideAirTemp'}]; end
             end
 
             if doBiasVars
@@ -468,28 +483,31 @@ for i = 1:length(aeri_files)
             % Define dimensions for the variables
             time_dimid = netcdf.defDim(ncid, 'DATETIME', length(time_seconds));
             wnum_dimid = netcdf.defDim(ncid, 'WAVENUMBER', length(wnum));
-            flag_dimid = netcdf.defDim(ncid, 'FLAG_NAMES', length(flag_names));
             string_dimid = netcdf.defDim(ncid, 'string_length', 256);
 
             % Define variables
             time_varid = netcdf.defVar(ncid, 'DATETIME', 'double', time_dimid);
-            lat_varid = netcdf.defVar(ncid, 'LATITUDE', 'double', []);
-            lon_varid = netcdf.defVar(ncid, 'LONGITUDE', 'double', []);
-            alt_varid = netcdf.defVar(ncid, 'ALTITUDE', 'double', []);
+            integtime_varid = netcdf.defVar(ncid, 'INTEGRATION.TIME', 'double', time_dimid);
+            lat_varid = netcdf.defVar(ncid, 'LATITUDE.INSTRUMENT', 'double', time_dimid);
+            lon_varid = netcdf.defVar(ncid, 'LONGITUDE.INSTRUMENT', 'double', time_dimid);
+            alt_varid = netcdf.defVar(ncid, 'ALTITUDE.INSTRUMENT', 'double', time_dimid);
             wnum_varid = netcdf.defVar(ncid, 'WAVENUMBER', 'double', wnum_dimid);
-            rad_varid = netcdf.defVar(ncid, 'RADIANCE.SKY', 'double', [wnum_dimid, time_dimid]);
-            skynen_varid = netcdf.defVar(ncid, 'RADIANCE.SKY_NOISE', 'double', [wnum_dimid, time_dimid]);
-            resp_varid = netcdf.defVar(ncid, 'RESPONSIVITY.SPECTRAL', 'double', [wnum_dimid, time_dimid]);
-            calerror_varid = netcdf.defVar(ncid, 'RADIANCE.SKY_ERROR', 'double', [wnum_dimid, time_dimid]);
-            flag_details_varid = netcdf.defVar(ncid, 'FLAG.MEASUREMENT.QUALITY', 'byte', [flag_dimid, time_dimid]);
-            flag_names_varid = netcdf.defVar(ncid, 'FLAG.NAMES', 'char', [flag_dimid, string_dimid]);
-            mopd_varid = netcdf.defVar(ncid, 'MAXIMUM.OPTICAL.PATH.DIFFERENCE', 'double', []);
+            rad_varid = netcdf.defVar(ncid, 'RADIANCE', 'double', [wnum_dimid, time_dimid]);
+            skynen_varid = netcdf.defVar(ncid, 'RADIANCE_NOISE.EQUIVALENT', 'double', [wnum_dimid, time_dimid]);
+            calerror_varid = netcdf.defVar(ncid, 'RADIANCE_CALIBRATION.UNCERTAINTY', 'double', [wnum_dimid, time_dimid]);
+            fov_varid = netcdf.defVar(ncid, 'RADIANCE_FOV', 'double', []);
+            resp_varid = netcdf.defVar(ncid, 'RESPONSIVITY_SPECTRAL', 'double', [wnum_dimid, time_dimid]);
+            flag_details_varid = netcdf.defVar(ncid, 'FLAG.MEASUREMENT.QUALITY', 'int', time_dimid);
+            mopd_varid = netcdf.defVar(ncid, 'PATH.DIFFERENCE_MAXIMUM', 'double', []);
+            surftemp_varid = netcdf.defVar(ncid, 'SURFACE.TEMPERATURE', 'double', time_dimid);
+            surftemp_src_varid = netcdf.defVar(ncid, 'SURFACE.TEMPERATURE_SOURCE', 'char', string_dimid);
+            surfpres_varid = netcdf.defVar(ncid, 'SURFACE.PRESSURE', 'double', time_dimid);
+            surfpres_src_varid = netcdf.defVar(ncid, 'SURFACE.PRESSURE_SOURCE', 'char', string_dimid);
 
             if debugTemp
                airtemp_varid = netcdf.defVar(ncid, 'airNearInterferometerTemp', 'double', time_dimid);
                windowtemp_varid = netcdf.defVar(ncid, 'interferometerWindowTemp', 'double', time_dimid);
                scetemp_varid = netcdf.defVar(ncid, 'SCEtemp', 'double', time_dimid);
-               outside_temp_varid = netcdf.defVar(ncid, 'outsideAirTemp', 'double', time_dimid);
             end
 
             if doBiasVars
@@ -508,8 +526,8 @@ for i = 1:length(aeri_files)
             % Define variable attributes
             % DATETIME
             netcdf.putAtt(ncid, time_varid, 'VAR_NAME', 'DATETIME');
-            netcdf.putAtt(ncid, time_varid, 'VAR_DESCRIPTION', 'Time of measurement in Modified Julian Date 2000');
-            netcdf.putAtt(ncid, time_varid, 'VAR_NOTES', '');
+            netcdf.putAtt(ncid, time_varid, 'VAR_DESCRIPTION', 'Mean time of the measurement sequence used for each retrieval; defined relative to reference datetime of Jan. 1 2000 at 0:00:00');
+            netcdf.putAtt(ncid, time_varid, 'VAR_NOTES', 'Center of the scan (AERI summary file Time/timeHHMMSS: "Time at center of AERI sky observation period"). Start/stop = DATETIME +/- INTEGRATION.TIME/2.');
             netcdf.putAtt(ncid, time_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
             netcdf.putAtt(ncid, time_varid, 'VAR_DEPEND', 'DATETIME');
             netcdf.putAtt(ncid, time_varid, 'VAR_DATA_TYPE', 'DOUBLE');
@@ -521,12 +539,25 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, time_varid, 'VAR_VALID_MAX', sprintf('%.8f', max_mjd2k));
             netcdf.putAtt(ncid, time_varid, 'VAR_FILL_VALUE', '-9999.0');
 
-            % LATITUDE
-            netcdf.putAtt(ncid, lat_varid, 'VAR_NAME', 'LATITUDE');
-            netcdf.putAtt(ncid, lat_varid, 'VAR_DESCRIPTION', 'Latitude of the AERI instrument');
-            netcdf.putAtt(ncid, lat_varid, 'VAR_NOTES', '');
-            netcdf.putAtt(ncid, lat_varid, 'VAR_SIZE', '1');
-            netcdf.putAtt(ncid, lat_varid, 'VAR_DEPEND', 'CONSTANT');
+            % INTEGRATION.TIME
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_NAME', 'INTEGRATION.TIME');
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_DESCRIPTION', 'Scan duration');
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_NOTES', 'From sceneViewDuration in the AERI summary file; varies scan to scan.');
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_DEPEND', 'DATETIME');
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_DATA_TYPE', 'DOUBLE');
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_UNITS', 's');
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_SI_CONVERSION', '0;1;s');
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_VALID_MIN', '0.0');
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_VALID_MAX', '60.0');
+            netcdf.putAtt(ncid, integtime_varid, 'VAR_FILL_VALUE', '-9999.0');
+
+            % LATITUDE.INSTRUMENT
+            netcdf.putAtt(ncid, lat_varid, 'VAR_NAME', 'LATITUDE.INSTRUMENT');
+            netcdf.putAtt(ncid, lat_varid, 'VAR_DESCRIPTION', 'Inst. geolocation. Latitude north (decimal degrees) of the location of the instrument (+ for north; - for south)');
+            netcdf.putAtt(ncid, lat_varid, 'VAR_NOTES', 'Stationary instrument; constant across DATETIME.');
+            netcdf.putAtt(ncid, lat_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+            netcdf.putAtt(ncid, lat_varid, 'VAR_DEPEND', 'DATETIME');
             netcdf.putAtt(ncid, lat_varid, 'VAR_DATA_TYPE', 'DOUBLE');
             netcdf.putAtt(ncid, lat_varid, 'VAR_UNITS', 'deg');
             netcdf.putAtt(ncid, lat_varid, 'VAR_SI_CONVERSION', '0;0.017453292519943295;rad');
@@ -534,12 +565,12 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, lat_varid, 'VAR_VALID_MAX', '90.0');
             netcdf.putAtt(ncid, lat_varid, 'VAR_FILL_VALUE', '-9999.0');
 
-            % LONGITUDE
-            netcdf.putAtt(ncid, lon_varid, 'VAR_NAME', 'LONGITUDE');
-            netcdf.putAtt(ncid, lon_varid, 'VAR_DESCRIPTION', 'Longitude of the AERI instrument');
-            netcdf.putAtt(ncid, lon_varid, 'VAR_NOTES', '');
-            netcdf.putAtt(ncid, lon_varid, 'VAR_SIZE', '1');
-            netcdf.putAtt(ncid, lon_varid, 'VAR_DEPEND', 'CONSTANT');
+            % LONGITUDE.INSTRUMENT
+            netcdf.putAtt(ncid, lon_varid, 'VAR_NAME', 'LONGITUDE.INSTRUMENT');
+            netcdf.putAtt(ncid, lon_varid, 'VAR_DESCRIPTION', 'Inst. geolocation. Longitude east (decimal degrees) of the location of the instrument (+ for east; - for west)');
+            netcdf.putAtt(ncid, lon_varid, 'VAR_NOTES', 'Stationary instrument; constant across DATETIME.');
+            netcdf.putAtt(ncid, lon_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+            netcdf.putAtt(ncid, lon_varid, 'VAR_DEPEND', 'DATETIME');
             netcdf.putAtt(ncid, lon_varid, 'VAR_DATA_TYPE', 'DOUBLE');
             netcdf.putAtt(ncid, lon_varid, 'VAR_UNITS', 'deg');
             netcdf.putAtt(ncid, lon_varid, 'VAR_SI_CONVERSION', '0;0.017453292519943295;rad');
@@ -547,12 +578,12 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, lon_varid, 'VAR_VALID_MAX', '180.0');
             netcdf.putAtt(ncid, lon_varid, 'VAR_FILL_VALUE', '-9999.0');
 
-            % ALTITUDE
-            netcdf.putAtt(ncid, alt_varid, 'VAR_NAME', 'ALTITUDE');
-            netcdf.putAtt(ncid, alt_varid, 'VAR_DESCRIPTION', 'Altitude of the AERI instrument above sea level');
-            netcdf.putAtt(ncid, alt_varid, 'VAR_NOTES', '');
-            netcdf.putAtt(ncid, alt_varid, 'VAR_SIZE', '1');
-            netcdf.putAtt(ncid, alt_varid, 'VAR_DEPEND', 'CONSTANT');
+            % ALTITUDE.INSTRUMENT
+            netcdf.putAtt(ncid, alt_varid, 'VAR_NAME', 'ALTITUDE.INSTRUMENT');
+            netcdf.putAtt(ncid, alt_varid, 'VAR_DESCRIPTION', 'Inst. geolocation. Altitude of the instrument relative to the location site');
+            netcdf.putAtt(ncid, alt_varid, 'VAR_NOTES', 'Stationary instrument; constant across DATETIME.');
+            netcdf.putAtt(ncid, alt_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+            netcdf.putAtt(ncid, alt_varid, 'VAR_DEPEND', 'DATETIME');
             netcdf.putAtt(ncid, alt_varid, 'VAR_DATA_TYPE', 'DOUBLE');
             netcdf.putAtt(ncid, alt_varid, 'VAR_UNITS', 'm');
             netcdf.putAtt(ncid, alt_varid, 'VAR_SI_CONVERSION', '0;1;m');
@@ -573,9 +604,9 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, wnum_varid, 'VAR_VALID_MAX', sprintf('%f', max(wnum)));
             netcdf.putAtt(ncid, wnum_varid, 'VAR_FILL_VALUE', '-9999.0');
 
-            % RADIANCE.SKY
-            netcdf.putAtt(ncid, rad_varid, 'VAR_NAME', 'RADIANCE.SKY');
-            netcdf.putAtt(ncid, rad_varid, 'VAR_DESCRIPTION', 'Calibrated atmospheric radiance');
+            % RADIANCE
+            netcdf.putAtt(ncid, rad_varid, 'VAR_NAME', 'RADIANCE');
+            netcdf.putAtt(ncid, rad_varid, 'VAR_DESCRIPTION', 'Calibrated Atmospheric Radiance');
             netcdf.putAtt(ncid, rad_varid, 'VAR_NOTES', 'Atmospheric infrared radiance spectra. Use FLAG.MEASUREMENT.QUALITY to filter data based on quality control flags. Details about the flags can be found at https://gitlab.ssec.wisc.edu/aeri/aeri_quality_control');
             netcdf.putAtt(ncid, rad_varid, 'VAR_SIZE', sprintf('%d;%d', length(wnum), length(time_seconds)));
             netcdf.putAtt(ncid, rad_varid, 'VAR_DEPEND', 'DATETIME;WAVENUMBER');
@@ -586,8 +617,8 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, rad_varid, 'VAR_VALID_MAX', '1000.0');
             netcdf.putAtt(ncid, rad_varid, 'VAR_FILL_VALUE', '-9999.0');
 
-            % RADIANCE.SKY_NOISE
-            netcdf.putAtt(ncid, skynen_varid, 'VAR_NAME', 'RADIANCE.SKY_NOISE');
+            % RADIANCE_NOISE.EQUIVALENT
+            netcdf.putAtt(ncid, skynen_varid, 'VAR_NAME', 'RADIANCE_NOISE.EQUIVALENT');
             netcdf.putAtt(ncid, skynen_varid, 'VAR_DESCRIPTION', 'Sky noise equivalent radiance (NESR)');
             netcdf.putAtt(ncid, skynen_varid, 'VAR_NOTES', 'SkyNENch1 values interpolated to match radiance wavenumbers');
             netcdf.putAtt(ncid, skynen_varid, 'VAR_SIZE', sprintf('%d;%d', length(wnum), length(time_seconds)));
@@ -599,22 +630,22 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, skynen_varid, 'VAR_VALID_MAX', '1000.0');
             netcdf.putAtt(ncid, skynen_varid, 'VAR_FILL_VALUE', '-9999.0');
 
-            % RESPONSIVITY.SPECTRAL
-            netcdf.putAtt(ncid, resp_varid, 'VAR_NAME', 'RESPONSIVITY.SPECTRAL');
+            % RESPONSIVITY_SPECTRAL
+            netcdf.putAtt(ncid, resp_varid, 'VAR_NAME', 'RESPONSIVITY_SPECTRAL');
             netcdf.putAtt(ncid, resp_varid, 'VAR_DESCRIPTION', 'Responsivity spectral averages');
-            netcdf.putAtt(ncid, resp_varid, 'VAR_NOTES', 'ResponsivitySpectralAveragesCh1 values interpolated to match radiance wavenumbers');
+            netcdf.putAtt(ncid, resp_varid, 'VAR_NOTES', 'ResponsivitySpectralAveragesCh1 interpolated to radiance wavenumbers, in counts per mW-1 m2 sr cm.');
             netcdf.putAtt(ncid, resp_varid, 'VAR_SIZE', sprintf('%d;%d', length(wnum), length(time_seconds)));
             netcdf.putAtt(ncid, resp_varid, 'VAR_DEPEND', 'DATETIME;WAVENUMBER');
             netcdf.putAtt(ncid, resp_varid, 'VAR_DATA_TYPE', 'DOUBLE');
-            netcdf.putAtt(ncid, resp_varid, 'VAR_UNITS', 'counts mW-1 m2 sr cm');
-            netcdf.putAtt(ncid, resp_varid, 'VAR_SI_CONVERSION', '0;1000;counts W-1 m2 sr m-1');
+            netcdf.putAtt(ncid, resp_varid, 'VAR_UNITS', 'mW-1 m2 sr cm');
+            netcdf.putAtt(ncid, resp_varid, 'VAR_SI_CONVERSION', '0;1000;W-1 m2 sr m-1');
             netcdf.putAtt(ncid, resp_varid, 'VAR_VALID_MIN', '0.0');
             netcdf.putAtt(ncid, resp_varid, 'VAR_VALID_MAX', '10000.0');
             netcdf.putAtt(ncid, resp_varid, 'VAR_FILL_VALUE', '-9999.0');
 
-            % RADIANCE.SKY_ERROR
-            netcdf.putAtt(ncid, calerror_varid, 'VAR_NAME', 'RADIANCE.SKY_ERROR');
-            netcdf.putAtt(ncid, calerror_varid, 'VAR_DESCRIPTION', 'Absolute calibration error -1-sigma absolute calibration error for the radiance. Calculated based on ambient blackbody apex temperature.');
+            % RADIANCE_CALIBRATION.UNCERTAINTY
+            netcdf.putAtt(ncid, calerror_varid, 'VAR_NAME', 'RADIANCE_CALIBRATION.UNCERTAINTY');
+            netcdf.putAtt(ncid, calerror_varid, 'VAR_DESCRIPTION', 'Absolute calibration error 1-sigma absolute calibration error for the radiance. Calculated based on ambient blackbody apex temperature.');
             netcdf.putAtt(ncid, calerror_varid, 'VAR_NOTES', '1-sigma absolute calibration error for the radiance. Calculated based on ambient blackbody apex temperature.');
             netcdf.putAtt(ncid, calerror_varid, 'VAR_SIZE', sprintf('%d;%d', length(wnum), length(time_seconds)));
             netcdf.putAtt(ncid, calerror_varid, 'VAR_DEPEND', 'WAVENUMBER;DATETIME');
@@ -625,35 +656,37 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, calerror_varid, 'VAR_VALID_MAX', '1000.0');
             netcdf.putAtt(ncid, calerror_varid, 'VAR_FILL_VALUE', '-9999.0');
 
+            % RADIANCE_FOV
+            netcdf.putAtt(ncid, fov_varid, 'VAR_NAME', 'RADIANCE_FOV');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_DESCRIPTION', 'Measurement field-of-view');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_NOTES', 'Full-angle zenith FOV = 2 x FFOVhalfAngle from the AERI summary file.');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_SIZE', '1');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_DEPEND', 'CONSTANT');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_DATA_TYPE', 'DOUBLE');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_UNITS', 'mrad');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_SI_CONVERSION', '0;0.001;rad');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_VALID_MIN', '0.0');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_VALID_MAX', '100.0');
+            netcdf.putAtt(ncid, fov_varid, 'VAR_FILL_VALUE', '-9999.0');
+
             % FLAG.MEASUREMENT.QUALITY
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_NAME', 'FLAG.MEASUREMENT.QUALITY');
-            netcdf.putAtt(ncid, flag_details_varid, 'VAR_DESCRIPTION', 'Detailed quality control flags');
-            netcdf.putAtt(ncid, flag_details_varid, 'VAR_NOTES', 'Binary flags for each specific test: 0 = passed, 1 = failed. User can choose which flags to apply for QC.');
-            netcdf.putAtt(ncid, flag_details_varid, 'VAR_SIZE', sprintf('%d;%d', length(flag_names), length(time_seconds)));
-            netcdf.putAtt(ncid, flag_details_varid, 'VAR_DEPEND', 'FLAG.NAMES;DATETIME');
-            netcdf.putAtt(ncid, flag_details_varid, 'VAR_DATA_TYPE', 'BYTE');
+            netcdf.putAtt(ncid, flag_details_varid, 'VAR_DESCRIPTION', 'Quality control bitmask flag');
+            netcdf.putAtt(ncid, flag_details_varid, 'VAR_NOTES', '0 = passed, 1 = failed for each test. Use flag_masks and flag_meanings to identify individual tests; user chooses which flags to apply.');
+            netcdf.putAtt(ncid, flag_details_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+            netcdf.putAtt(ncid, flag_details_varid, 'VAR_DEPEND', 'DATETIME');
+            netcdf.putAtt(ncid, flag_details_varid, 'VAR_DATA_TYPE', 'INTEGER');
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_UNITS', '1');
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_SI_CONVERSION', '0;1;1');
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_VALID_MIN', '0');
-            netcdf.putAtt(ncid, flag_details_varid, 'VAR_VALID_MAX', '1');
+            netcdf.putAtt(ncid, flag_details_varid, 'VAR_VALID_MAX', sprintf('%d', sum(flag_masks)));
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_FILL_VALUE', '-1');
+            netcdf.putAtt(ncid, flag_details_varid, 'flag_masks', flag_masks);
+            netcdf.putAtt(ncid, flag_details_varid, 'flag_meanings', strjoin(flag_names, ' '));
 
-            % FLAG.NAMES
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_NAME', 'FLAG.NAMES');
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_DESCRIPTION', 'Names of all available quality control flags');
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_NOTES', 'Complete list of all flags from AERI Armory QC system. User can choose which to apply.');
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_SIZE', sprintf('%d', length(flag_names)));
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_DEPEND', 'FLAG.NAMES');
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_DATA_TYPE', 'STRING');
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_UNITS', '');
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_SI_CONVERSION', '');
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_VALID_MIN', '');
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_VALID_MAX', '');
-            netcdf.putAtt(ncid, flag_names_varid, 'VAR_FILL_VALUE', '');
-
-            % MAXIMUM.OPTICAL.PATH.DIFFERENCE
-            netcdf.putAtt(ncid, mopd_varid, 'VAR_NAME', 'MAXIMUM.OPTICAL.PATH.DIFFERENCE');
-            netcdf.putAtt(ncid, mopd_varid, 'VAR_DESCRIPTION', 'Maximum Optical Path Difference');
+            % PATH.DIFFERENCE_MAXIMUM
+            netcdf.putAtt(ncid, mopd_varid, 'VAR_NAME', 'PATH.DIFFERENCE_MAXIMUM');
+            netcdf.putAtt(ncid, mopd_varid, 'VAR_DESCRIPTION', 'Maximum optical path difference');
             netcdf.putAtt(ncid, mopd_varid, 'VAR_NOTES', 'Full Width Half Maximum = 1.2067/(2*Maximum Optical Path Difference). AERI Ideal Line Shape available upon request.');
             netcdf.putAtt(ncid, mopd_varid, 'VAR_SIZE', '1');
             netcdf.putAtt(ncid, mopd_varid, 'VAR_DEPEND', 'CONSTANT');
@@ -663,6 +696,58 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, mopd_varid, 'VAR_VALID_MIN', '0.0');
             netcdf.putAtt(ncid, mopd_varid, 'VAR_VALID_MAX', '10.0');
             netcdf.putAtt(ncid, mopd_varid, 'VAR_FILL_VALUE', '-9999.0');
+
+            % SURFACE.TEMPERATURE
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_NAME', 'SURFACE.TEMPERATURE');
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_DESCRIPTION', 'Surface temperature');
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_NOTES', 'From outsideAirTemp, hatch opening; not a dedicated 2 m surface station. See SURFACE.TEMPERATURE_SOURCE.');
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_DEPEND', 'DATETIME');
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_DATA_TYPE', 'DOUBLE');
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_UNITS', 'K');
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_SI_CONVERSION', '0;1;K');
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_VALID_MIN', '173.0');
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_VALID_MAX', '333.0');
+            netcdf.putAtt(ncid, surftemp_varid, 'VAR_FILL_VALUE', '-9999.0');
+
+            % SURFACE.TEMPERATURE_SOURCE
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_NAME', 'SURFACE.TEMPERATURE_SOURCE');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_DESCRIPTION', 'Source of temperature measurement');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_NOTES', '');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_SIZE', '1');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_DEPEND', 'CONSTANT');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_DATA_TYPE', 'STRING');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_UNITS', '');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_SI_CONVERSION', '');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_VALID_MIN', '');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_VALID_MAX', '');
+            netcdf.putAtt(ncid, surftemp_src_varid, 'VAR_FILL_VALUE', '');
+
+            % SURFACE.PRESSURE
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_NAME', 'SURFACE.PRESSURE');
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_DESCRIPTION', 'Surface pressure');
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_NOTES', 'From atmosphericPressure, sensor housed in the AERI electronics enclosure. See SURFACE.PRESSURE_SOURCE.');
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_DEPEND', 'DATETIME');
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_DATA_TYPE', 'DOUBLE');
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_UNITS', 'hPa');
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_SI_CONVERSION', '0;100;Pa');
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_VALID_MIN', '500.0');
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_VALID_MAX', '1100.0');
+            netcdf.putAtt(ncid, surfpres_varid, 'VAR_FILL_VALUE', '-9999.0');
+
+            % SURFACE.PRESSURE_SOURCE
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_NAME', 'SURFACE.PRESSURE_SOURCE');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_DESCRIPTION', 'Source of pressure measurement');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_NOTES', '');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_SIZE', '1');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_DEPEND', 'CONSTANT');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_DATA_TYPE', 'STRING');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_UNITS', '');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_SI_CONVERSION', '');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_VALID_MIN', '');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_VALID_MAX', '');
+            netcdf.putAtt(ncid, surfpres_src_varid, 'VAR_FILL_VALUE', '');
 
             if debugTemp
                 % airNearInterferometerTemp
@@ -691,15 +776,6 @@ for i = 1:length(aeri_files)
                 netcdf.putAtt(ncid, scetemp_varid, 'VAR_DEPEND', 'DATETIME');
                 netcdf.putAtt(ncid, scetemp_varid, 'VAR_DATA_TYPE', 'DOUBLE');
                 netcdf.putAtt(ncid, scetemp_varid, 'VAR_UNITS', 'degrees_Kelvin');
-                
-                % outsideAirTemp
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_NAME', 'outsideAirTemp');
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_DESCRIPTION', 'Ambient air temperature at hatch opening');
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_NOTES', '');
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_DEPEND', 'DATETIME');
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_DATA_TYPE', 'DOUBLE');
-                netcdf.putAtt(ncid, outside_temp_varid, 'VAR_UNITS', 'degrees_Kelvin');
             end
 
             if doBiasVars
@@ -742,10 +818,10 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_GROUP', 'EXPERIMENTAL;SCALAR.STATIONARY');
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_LOCATION', data_location);
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_SOURCE', data_source);
-            var_list = 'DATETIME;LATITUDE;LONGITUDE;ALTITUDE;WAVENUMBER;RADIANCE.SKY;RADIANCE.SKY_NOISE;RESPONSIVITY.SPECTRAL;RADIANCE.SKY_ERROR;FLAG.MEASUREMENT.QUALITY;FLAG.NAMES;MAXIMUM.OPTICAL.PATH.DIFFERENCE';
-            
+            var_list = 'DATETIME;INTEGRATION.TIME;LATITUDE.INSTRUMENT;LONGITUDE.INSTRUMENT;ALTITUDE.INSTRUMENT;WAVENUMBER;RADIANCE;RADIANCE_NOISE.EQUIVALENT;RADIANCE_CALIBRATION.UNCERTAINTY;RADIANCE_FOV;RESPONSIVITY_SPECTRAL;FLAG.MEASUREMENT.QUALITY;PATH.DIFFERENCE_MAXIMUM;SURFACE.TEMPERATURE;SURFACE.TEMPERATURE_SOURCE;SURFACE.PRESSURE;SURFACE.PRESSURE_SOURCE';
+
             if debugTemp
-                var_list = [var_list ';airNearInterferometerTemp;interferometerWindowTemp;SCEtemp;outsideAirTemp'];
+                var_list = [var_list ';airNearInterferometerTemp;interferometerWindowTemp;SCEtemp'];
             end
             if doBiasVars
                 var_list = [var_list ';sceneMirrorTemp;BBsupportStructureTemp;sceneMirPosEncoder;ref1BlackbodyApexTemp;ref1BlackbodyBottomRimTemp'];
@@ -781,23 +857,34 @@ for i = 1:length(aeri_files)
 
             % Write data
             time_mjd2k = posix_to_mjd2k(time_seconds);
+            lat_series = repmat(lat, length(time_seconds), 1);
+            lon_series = repmat(lon, length(time_seconds), 1);
+            alt_series = repmat(altitude, length(time_seconds), 1);
+            surftemp_source_str = 'AERI outsideAirTemp sensor, hatch opening; not a dedicated 2 m surface station.';
+            surfpres_source_str = 'AERI atmosphericPressure sensor, housed in the instrument electronics enclosure.';
+
             netcdf.putVar(ncid, time_varid, time_mjd2k);
-            netcdf.putVar(ncid, lat_varid, lat);
-            netcdf.putVar(ncid, lon_varid, lon);
-            netcdf.putVar(ncid, alt_varid, altitude);
+            netcdf.putVar(ncid, integtime_varid, sceneViewDuration);
+            netcdf.putVar(ncid, lat_varid, lat_series);
+            netcdf.putVar(ncid, lon_varid, lon_series);
+            netcdf.putVar(ncid, alt_varid, alt_series);
             netcdf.putVar(ncid, wnum_varid, wnum);
             netcdf.putVar(ncid, rad_varid, rad);
             netcdf.putVar(ncid, skynen_varid, skyNENch1_interp);
             netcdf.putVar(ncid, resp_varid, respSpecAVGch1_interp);
             netcdf.putVar(ncid, calerror_varid, absoluteCalError);
-            netcdf.putVar(ncid, flag_details_varid, uint8(flag_details));
+            netcdf.putVar(ncid, fov_varid, radiance_fov_mrad);
+            netcdf.putVar(ncid, flag_details_varid, int32(flag_bitmask));
             netcdf.putVar(ncid, mopd_varid, MOPD);
+            netcdf.putVar(ncid, surftemp_varid, outsideAirTemp);
+            netcdf.putVar(ncid, surftemp_src_varid, 0, length(surftemp_source_str), surftemp_source_str);
+            netcdf.putVar(ncid, surfpres_varid, atmosphericPressure);
+            netcdf.putVar(ncid, surfpres_src_varid, 0, length(surfpres_source_str), surfpres_source_str);
 
             if debugTemp
                 netcdf.putVar(ncid, airtemp_varid, airNearInterferometerTemp);
                 netcdf.putVar(ncid, windowtemp_varid, interferometerWindowTemp);
                 netcdf.putVar(ncid, scetemp_varid, SCEtemp);
-                netcdf.putVar(ncid, outside_temp_varid, outsideAirTemp);
             end
             
             if doBiasVars
@@ -809,13 +896,6 @@ for i = 1:length(aeri_files)
                 
                 for v = 1:length(c1_temp_vars)
                     netcdf.putVar(ncid, c1_temp_ids(v), bias_temps.(c1_temp_vars{v}));
-                end
-            end
-
-            % Write all flag names
-            for k = 1:length(flag_names)
-                if ~isempty(flag_names{k})
-                    netcdf.putVar(ncid, flag_names_varid, [k-1, 0], [1, length(flag_names{k})], flag_names{k});
                 end
             end
 
