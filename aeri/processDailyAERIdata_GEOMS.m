@@ -456,6 +456,17 @@ for i = 1:length(aeri_files)
             start_datestr_filename = lower(start_datestr_iso);
             stop_datestr_filename = lower(stop_datestr_iso);
 
+            % EarthCARE (ECALOT / AOID39821) campaign metadata: applies only to the
+            % Ottawa-area cal/val sites (not RADAR or INUVIK), Sept 2024 through June 2025
+            earthcare_site_map = containers.Map({'NRC', 'GAULT', 'BURNSIDE'}, {'OTTAWA.CYOW', 'GAULT', 'BURNSIDE'});
+            earthcare_start = datetime(2024, 9, 1, 'TimeZone', 'UTC');
+            earthcare_end = datetime(2025, 6, 30, 23, 59, 59, 'TimeZone', 'UTC');
+            is_earthcare = isKey(earthcare_site_map, location) && start_dt >= earthcare_start && start_dt <= earthcare_end;
+
+            if is_earthcare
+                data_location = earthcare_site_map(location);
+            end
+
             aeri_parent_dir = fileparts(aeri_files(i).folder); % Get AE* folder
             nc_output_dir = fullfile(aeri_parent_dir, 'output');
             if ~exist(nc_output_dir, 'dir')
@@ -797,10 +808,12 @@ for i = 1:length(aeri_files)
             end
 
             % Global attributes (GEOMS header information)
-            netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'Conventions', 'GEOMS-1.0');
-            netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'title', sprintf('AERI %s processed data', location));
-            netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'source', 'AERI instrument');
-            netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'history', sprintf('Created on %s', datestr(now, 'yyyy-mm-dd HH:MM:SS')));
+            if ~is_earthcare
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'Conventions', 'GEOMS-1.0');
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'title', sprintf('AERI %s processed data', location));
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'source', 'AERI instrument');
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'history', sprintf('Created on %s', datestr(now, 'yyyy-mm-dd HH:MM:SS')));
+            end
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'PI_NAME', 'Huang;Yi');
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'PI_AFFILIATION', 'McGill University;MCGILL');
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'PI_ADDRESS', '805 Sherbrooke St W, Montreal, QC H3A 0B9;CANADA');
@@ -836,7 +849,11 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_FILE_VERSION', data_file_version);
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_MODIFICATIONS', sprintf('Version %s', data_file_version));
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_CAVEATS', 'Unknown');
-            netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_RULES_OF_USE', 'Unknown');
+            if is_earthcare
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_RULES_OF_USE', 'Follows the EVDC EarthCARE data protocol at https://earthcare-protocol.evdc.nilu.no/');
+            else
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_RULES_OF_USE', 'Unknown');
+            end
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_ACKNOWLEDGEMENT', ' ');
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_QUALITY', 'Quality-controlled using multiple flags from AERI Armory; see FLAG.MEASUREMENT.QUALITY');
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'DATA_TEMPLATE', 'GEOMS-TE-AERI-STATION-001');
@@ -845,11 +862,21 @@ for i = 1:length(aeri_files)
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_NAME', [filename_only, ext]);
             file_generation_iso = datestr(datetime('now', 'TimeZone', 'UTC'), 'yyyymmddTHHMMSSZ');
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_GENERATION_DATE', file_generation_iso);
-            netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_ACCESS', 'Benjamin Riot-Bretêcher;');
-            netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_PROJECT_ID', 'Unknown');
+            if is_earthcare
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_ACCESS', 'EARTHCARE');
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_PROJECT_ID', 'AOID39821');
+            else
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_ACCESS', 'Benjamin Riot-Bretêcher;');
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_PROJECT_ID', 'Unknown');
+            end
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_DOI', ' ');
-            netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_ASSOCIATION', 'Benjamin Riot-Bretêcher;');
-            string_meta_version = strcat('04R',data_file_version, ';IDLCR8HDF');
+            if is_earthcare
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_ASSOCIATION', 'EARTHCARE');
+                string_meta_version = '04R111;IDLCR8HDF';
+            else
+                netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_ASSOCIATION', 'Benjamin Riot-Bretêcher;');
+                string_meta_version = strcat('04R',data_file_version, ';IDLCR8HDF');
+            end
             netcdf.putAtt(ncid, netcdf.getConstant('NC_GLOBAL'), 'FILE_META_VERSION', string_meta_version);
 
             % End define mode before writing data
