@@ -106,6 +106,11 @@ which matlab
   - Plots radiance spectra with and without QC filtering for specific times.
   - Inputs: `root_dir`, `time_selections` (cell array), `output_file` (optional), `avg_window_minutes` (optional).
 
+- `aeri/spectral_calibration/` — Spectral calibration after a laser change
+
+  - Jonathan Gero's (UW-SSEC) procedure to get the new `originalLaserWavenumber` of each channel by comparing a clear-sky AERI spectrum with LBLRTM run on a coincident radiosonde. Must be redone every time an AERI laser is replaced.
+  - Separate from the processing pipeline, see [Spectral calibration](#spectral-calibration) below.
+
 ## Key configuration
 
 - **Docker image**: Scripts use `gitlab.ssec.wisc.edu:5555/aeri/aeri_armory` (configurable via `AERI_IMG` variable).
@@ -256,6 +261,12 @@ Common issues:
 - **Docker permission errors**: Add your user to the docker group (Linux) or ensure Docker Desktop is running (macOS)
 - **MATLAB not found**: Add MATLAB to your PATH or specify the full path in the scripts
 - **Location not detected**: Verify lat/lon in netCDF files are correct and within 0.1° of known sites
+
+## Spectral calibration
+
+**Has to be redone every time the laser of an AERI is replaced.** It gives the new `originalLaserWavenumber` for ch1 and ch2 to put in the AERI configuration, by fitting a clear-sky AERI spectrum to an LBLRTM calculation from a radiosonde launched at the same time.
+
+The scripts are Jonathan Gero's (UW-SSEC), with the RNC/SUM conversion done by the AERI Armory and LBLRTM run on Rorqual. Full procedure, inputs and checks: [`aeri/spectral_calibration/README.md`](aeri/spectral_calibration/README.md).
 
 ## Contact
 
