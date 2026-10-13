@@ -1,0 +1,14 @@
+spectral calibration function tree
+
+AERImeanSpectra*
+-rd_netcdf
+
+makeTape5*
+-dp2mr
+-aeri_write5
+-eswat_goffgratch
+-esice_goffgratch
+-e2mr
+
+AERI_LBLRTM_Spectral_Calibration*
+-zeropad4

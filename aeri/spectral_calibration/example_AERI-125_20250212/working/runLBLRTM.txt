@@ -1,0 +1,21 @@
+ssh armada
+
+cd /home/jgero/lblrtm
+unzip lblrtm_work.zip
+mv work_rename spectral_calibration_AERI-125_20250212T120639
+exit
+
+scp /Users/jgero/Dropbox/documents/MATLAB/spectralcalibration/Spectral_Calibration_AERI-125_2025-02-12/working/tape5_* armada:/home/jgero/lblrtm/spectral_calibration_AERI-125_20250212T120639
+
+ssh armada
+
+cd /home/jgero/lblrtm/spectral_calibration_AERI-125_20250212T120639
+cp tape5_AERI-125_20250212T120639_ch1.txt TAPE5
+./lblrtm
+mv TAPE27 tape27_AERI-125_20250212T120639_ch1.txt
+cp tape5_AERI-125_20250212T120639_ch2.txt TAPE5
+./lblrtm
+mv TAPE27 tape27_AERI-125_20250212T120639_ch2.txt
+exit
+
+scp 'armada:/home/jgero/lblrtm/spectral_calibration_AERI-125_20250212T120639/tape27_AERI-125_20250212T120639_ch*.txt' /Users/jgero/Dropbox/documents/MATLAB/spectralcalibration/Spectral_Calibration_AERI-125_2025-02-12/working/

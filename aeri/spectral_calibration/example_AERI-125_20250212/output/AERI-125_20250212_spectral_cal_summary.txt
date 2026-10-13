@@ -1,0 +1,15 @@
+----------------------------------------------------------
+--------   AERI Spectral Calibration Summary  ------------
+
+20250212 GAULT AERI-125 Time: 11.8-12.8 UTC
+AERI  file:  250212C1.RNC
+sonde file:  EOS_20250212_1115_HSPOTINT.txt
+Created:  09-Sep-2026 02:31:27
+
+Old AERI LW ch1 originalLaserWavenumber (cm-1): 15799.6973
+Old AERI SW ch2 originalLaserWavenumber (cm-1): 15799.4414
+AERI LW ch1 best fit scale factor: 1.000005 (5.1 ppm)
+AERI SW ch2 best fit scale factor: 0.999999 (-1 ppm)
+New AERI LW ch1 originalLaserWavenumber (cm-1): 15799.7771
+New AERI SW ch2 originalLaserWavenumber (cm-1): 15799.4254
+----------------------------------------------------------
