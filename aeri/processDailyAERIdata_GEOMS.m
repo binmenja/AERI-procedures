@@ -317,7 +317,7 @@ for i = 1:length(aeri_files)
                 'detectorTemp', 'motorDriverTemp', 'rackAmbientTemp', ...
                 'coolerExpanderTemp', 'coolerCompressorTemp', 'mirrorMotorTemp', ...
                 'airNearBBsTemp', 'HBBbottomTemp', 'HBBapexTemp', ...
-                'HBBtopTemp', 'ABBtopTemp', 'NBBbottomTemp', 'NBBapexTemp', ...
+                'HBBtopTemp', 'ABBbottomTemp', 'ABBapexTemp', 'ABBtopTemp', 'NBBbottomTemp', 'NBBapexTemp', ...
                 'calibrationHBBtemp', 'calibrationCBBtemp', 'calibrationAmbientTemp'
             };
             
@@ -523,9 +523,8 @@ for i = 1:length(aeri_files)
             wnum_dimid = netcdf.defDim(ncid, 'WAVENUMBER', length(wnum));
             surftemp_source_str = 'AERI outsideAirTemp sensor, hatch opening, not a dedicated 2 m surface station.';
             surfpres_source_str = 'AERI atmosphericPressure sensor, housed in the instrument electronics enclosure.';
-            const_dimid = netcdf.defDim(ncid, 'CONSTANT', 1);
-            surftemp_strlen_dimid = netcdf.defDim(ncid, 'SURFACE.TEMPERATURE_SOURCE_STRLEN', length(surftemp_source_str));
-            surfpres_strlen_dimid = netcdf.defDim(ncid, 'SURFACE.PRESSURE_SOURCE_STRLEN', length(surfpres_source_str));
+            surftemp_strlen_dimid = netcdf.defDim(ncid, sprintf('STRING_%d', length(surftemp_source_str)), length(surftemp_source_str));
+            surfpres_strlen_dimid = netcdf.defDim(ncid, sprintf('STRING_%d', length(surfpres_source_str)), length(surfpres_source_str));
 
             % Define variables
             time_varid = netcdf.defVar(ncid, 'DATETIME', 'double', time_dimid);
@@ -542,9 +541,9 @@ for i = 1:length(aeri_files)
             flag_details_varid = netcdf.defVar(ncid, 'FLAG.MEASUREMENT.QUALITY', 'int', time_dimid);
             mopd_varid = netcdf.defVar(ncid, 'PATH.DIFFERENCE_MAXIMUM', 'float', []);
             surftemp_varid = netcdf.defVar(ncid, 'SURFACE.TEMPERATURE', 'float', time_dimid);
-            surftemp_src_varid = netcdf.defVar(ncid, 'SURFACE.TEMPERATURE_SOURCE', 'char', [surftemp_strlen_dimid, const_dimid]);
+            surftemp_src_varid = netcdf.defVar(ncid, 'SURFACE.TEMPERATURE_SOURCE', 'char', surftemp_strlen_dimid);
             surfpres_varid = netcdf.defVar(ncid, 'SURFACE.PRESSURE', 'float', time_dimid);
-            surfpres_src_varid = netcdf.defVar(ncid, 'SURFACE.PRESSURE_SOURCE', 'char', [surfpres_strlen_dimid, const_dimid]);
+            surfpres_src_varid = netcdf.defVar(ncid, 'SURFACE.PRESSURE_SOURCE', 'char', surfpres_strlen_dimid);
 
             if debugTemp
                airtemp_varid = netcdf.defVar(ncid, 'airNearInterferometerTemp', 'float', time_dimid);
@@ -933,9 +932,9 @@ for i = 1:length(aeri_files)
             netcdf.putVar(ncid, flag_details_varid, int32(flag_bitmask));
             netcdf.putVar(ncid, mopd_varid, single(MOPD));
             netcdf.putVar(ncid, surftemp_varid, single(outsideAirTemp));
-            netcdf.putVar(ncid, surftemp_src_varid, [0 0], [length(surftemp_source_str) 1], surftemp_source_str(:));
+            netcdf.putVar(ncid, surftemp_src_varid, surftemp_source_str);
             netcdf.putVar(ncid, surfpres_varid, single(atmosphericPressure));
-            netcdf.putVar(ncid, surfpres_src_varid, [0 0], [length(surfpres_source_str) 1], surfpres_source_str(:));
+            netcdf.putVar(ncid, surfpres_src_varid, surfpres_source_str);
 
             if debugTemp
                 netcdf.putVar(ncid, airtemp_varid, single(airNearInterferometerTemp));
