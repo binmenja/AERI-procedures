@@ -112,6 +112,22 @@ for i = 1:length(aeri_files)
             coords_from_site = true;
             location = 'ponex';
             serial = '125';
+        elseif abs(lat - 43.0706) < tolerance && abs(lon + 89.4072) < tolerance && ...
+                (contains(lower(aeri_file), 'gault') || contains(lower(aeri_file), 'burnside'))
+            % first months at Gault (2023) and Burnside (2022-2023): the AERI config still had
+            % the SSEC Madison coordinates. Use the site position, as in the later files.
+            if contains(lower(aeri_file), 'gault')
+                location = 'gault'; serial = '125';
+                site_pos = [45.53502, -73.14901, 132];
+            else
+                location = 'burnside'; serial = '124';
+                site_pos = [45.5048, -73.5749, 97];
+            end
+            warning('%s file has the Madison coordinates (lat=%.4f, lon=%.4f); replacing with site position %.4f, %.4f, %g m.', location, lat, lon, site_pos(1), site_pos(2), site_pos(3));
+            lat = site_pos(1);
+            lon = site_pos(2);
+            altitude = site_pos(3);
+            coords_from_site = true;
         elseif abs(lat - gault_lat) < tolerance && abs(lon - gault_lon) < tolerance
             location = 'gault';
             serial = '125';
@@ -179,9 +195,11 @@ for i = 1:length(aeri_files)
             end
         end
 
-        if isempty(qc_file)
-            warning('No QC file found for %s at site %s on %s - Skipping', aeri_file, location, date_part_for_qc);
-            continue;
+        % without a QC file (Armory quality_control failed) the file is still written,
+        % with FLAG.MEASUREMENT.QUALITY set to its fill value
+        have_qc = ~isempty(qc_file);
+        if ~have_qc
+            warning('No QC file found for %s at site %s on %s - QC flags set to fill value', aeri_file, location, date_part_for_qc);
         end
 
         sum_file = '';
@@ -228,8 +246,10 @@ for i = 1:length(aeri_files)
         wnum = ncread(aeri_file, 'wnum1');
 
         % Read QC data
-        qc_basetime = ncread(qc_file, 'base_time');
-        qc_timeoff = ncread(qc_file, 'time_offset');
+        if have_qc
+            qc_basetime = ncread(qc_file, 'base_time');
+            qc_timeoff = ncread(qc_file, 'time_offset');
+        end
 
         % Read summary data
         sum_basetime = ncread(sum_file, 'base_time');
@@ -251,8 +271,12 @@ for i = 1:length(aeri_files)
 
         % Combine base_time and time_offset to get full timestamps in seconds
         aeri_seconds = double(aeri_timeoff) + double(aeri_basetime);
-        qc_seconds = double(qc_timeoff) + double(qc_basetime);
         sum_seconds = double(sum_timeoff) + double(sum_basetime);
+        if have_qc
+            qc_seconds = double(qc_timeoff) + double(qc_basetime);
+        else
+            qc_seconds = sum_seconds;
+        end
 
         % Check if timestamps are in milliseconds instead of seconds
         if aeri_seconds(1) > 2e12  % If timestamp is larger than year 2033 in seconds
@@ -311,6 +335,10 @@ for i = 1:length(aeri_files)
             % 1. Read from SUM
             sceneMirrorTemp = ncread(sum_file, 'sceneMirrorTemp');
             sceneMirror_aligned = sceneMirrorTemp(pos_sum);
+            enclosureRH = ncread(sum_file, 'interferometerEnclosureRelativeHumidity');
+            enclosureRH_aligned = enclosureRH(pos_sum);
+            coolerCurrent = ncread(sum_file, 'coolerCurrent');
+            coolerCurrent_aligned = coolerCurrent(pos_sum);
 
             % 2. Read auxiliary temperatures from AERI C1 file directly
             c1_temp_vars = {
@@ -380,7 +408,7 @@ for i = 1:length(aeri_files)
         file_flag_percentages = struct();
 
         % Read and process each flag
-        for k = 1:length(flag_names)
+        for k = 1:length(flag_names) * have_qc
             try
                 current_flag = ncread(qc_file, flag_names{k});
                 current_flag = current_flag(pos_qc);
@@ -402,7 +430,7 @@ for i = 1:length(aeri_files)
         % Create a structure to store ALL flags for each timestamp (not just filtering ones)
         flag_details = zeros(length(flag_names), length(pos_qc));
 
-        for k = 1:length(flag_names)
+        for k = 1:length(flag_names) * have_qc
             try
                 current_flag = ncread(qc_file, flag_names{k});
                 current_flag = current_flag(pos_qc);
@@ -416,6 +444,9 @@ for i = 1:length(aeri_files)
 
         % Combine the per-test binary flags into a single bitmask per timestamp
         flag_bitmask = double(flag_masks) * flag_details;
+        if ~have_qc
+            flag_bitmask(:) = -1;
+        end
 
         % Update total observations
         total_observations = total_observations + length(pos_qc);
@@ -451,6 +482,8 @@ for i = 1:length(aeri_files)
 
             if doBiasVars
                 if exist('sceneMirror_aligned', 'var'), save_vars = [save_vars, {'sceneMirror_aligned'}]; end
+                if exist('enclosureRH_aligned', 'var'), save_vars = [save_vars, {'enclosureRH_aligned'}]; end
+                if exist('coolerCurrent_aligned', 'var'), save_vars = [save_vars, {'coolerCurrent_aligned'}]; end
                 if exist('BBsupport_aligned', 'var'), save_vars = [save_vars, {'BBsupport_aligned'}]; end
                 if exist('encoder_aligned', 'var'), save_vars = [save_vars, {'encoder_aligned'}]; end
                 if exist('apex_aligned', 'var'), save_vars = [save_vars, {'apex_aligned'}]; end
@@ -553,6 +586,8 @@ for i = 1:length(aeri_files)
 
             if doBiasVars
                 sceneMir_id = netcdf.defVar(ncid, 'sceneMirrorTemp', 'float', time_dimid);
+                encRH_id = netcdf.defVar(ncid, 'interferometerEnclosureRelativeHumidity', 'float', time_dimid);
+                coolI_id = netcdf.defVar(ncid, 'coolerCurrent', 'float', time_dimid);
                 bbsup_id = netcdf.defVar(ncid, 'BBsupportStructureTemp', 'float', time_dimid);
                 enc_id = netcdf.defVar(ncid, 'sceneMirPosEncoder', 'float', time_dimid);
                 bbApex_id = netcdf.defVar(ncid, 'ref1BlackbodyApexTemp', 'float', time_dimid);
@@ -713,7 +748,11 @@ for i = 1:length(aeri_files)
             % FLAG.MEASUREMENT.QUALITY
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_NAME', 'FLAG.MEASUREMENT.QUALITY');
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_DESCRIPTION', 'Quality control bitmask flag');
-            netcdf.putAtt(ncid, flag_details_varid, 'VAR_NOTES', '0 = passed, 1 = failed for each test. Use flag_masks and flag_meanings to identify individual tests; user chooses which flags to apply.');
+            if have_qc
+                netcdf.putAtt(ncid, flag_details_varid, 'VAR_NOTES', '0 = passed, 1 = failed for each test. Use flag_masks and flag_meanings to identify individual tests; user chooses which flags to apply.');
+            else
+                netcdf.putAtt(ncid, flag_details_varid, 'VAR_NOTES', 'Quality control not available for this day (AERI Armory quality_control failed); all values set to the fill value.');
+            end
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_DEPEND', 'DATETIME');
             netcdf.putAtt(ncid, flag_details_varid, 'VAR_DATA_TYPE', 'INTEGER');
@@ -821,6 +860,18 @@ for i = 1:length(aeri_files)
 
             if doBiasVars
                 netcdf.putAtt(ncid, sceneMir_id, 'VAR_NAME', 'sceneMirrorTemp');
+                netcdf.putAtt(ncid, encRH_id, 'VAR_NAME', 'interferometerEnclosureRelativeHumidity');
+                netcdf.putAtt(ncid, encRH_id, 'VAR_DESCRIPTION', 'Relative humidity in the interferometer enclosure, from SUM file');
+                netcdf.putAtt(ncid, encRH_id, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+                netcdf.putAtt(ncid, encRH_id, 'VAR_DEPEND', 'DATETIME');
+                netcdf.putAtt(ncid, encRH_id, 'VAR_DATA_TYPE', 'REAL');
+                netcdf.putAtt(ncid, encRH_id, 'VAR_UNITS', '%');
+                netcdf.putAtt(ncid, coolI_id, 'VAR_NAME', 'coolerCurrent');
+                netcdf.putAtt(ncid, coolI_id, 'VAR_DESCRIPTION', 'Stirling cycle cooler current, from SUM file');
+                netcdf.putAtt(ncid, coolI_id, 'VAR_SIZE', sprintf('%d', length(time_seconds)));
+                netcdf.putAtt(ncid, coolI_id, 'VAR_DEPEND', 'DATETIME');
+                netcdf.putAtt(ncid, coolI_id, 'VAR_DATA_TYPE', 'REAL');
+                netcdf.putAtt(ncid, coolI_id, 'VAR_UNITS', 'A');
                 netcdf.putAtt(ncid, bbsup_id, 'VAR_NAME', 'BBsupportStructureTemp');
                 netcdf.putAtt(ncid, enc_id, 'VAR_NAME', 'sceneMirPosEncoder');
                 netcdf.putAtt(ncid, bbApex_id, 'VAR_NAME', 'ref1BlackbodyApexTemp');
@@ -867,7 +918,7 @@ for i = 1:length(aeri_files)
                 var_list = [var_list ';airNearInterferometerTemp;interferometerWindowTemp;SCEtemp'];
             end
             if doBiasVars
-                var_list = [var_list ';sceneMirrorTemp;BBsupportStructureTemp;sceneMirPosEncoder;ref1BlackbodyApexTemp;ref1BlackbodyBottomRimTemp'];
+                var_list = [var_list ';sceneMirrorTemp;interferometerEnclosureRelativeHumidity;coolerCurrent;BBsupportStructureTemp;sceneMirPosEncoder;ref1BlackbodyApexTemp;ref1BlackbodyBottomRimTemp'];
                 for v = 1:length(c1_temp_vars)
                     var_list = [var_list ';' c1_temp_vars{v}];
                 end
@@ -944,6 +995,8 @@ for i = 1:length(aeri_files)
             
             if doBiasVars
                 netcdf.putVar(ncid, sceneMir_id, single(sceneMirror_aligned));
+                netcdf.putVar(ncid, encRH_id, single(enclosureRH_aligned));
+                netcdf.putVar(ncid, coolI_id, single(coolerCurrent_aligned));
                 netcdf.putVar(ncid, bbsup_id, single(BBsupport_aligned));
                 netcdf.putVar(ncid, enc_id, single(encoder_aligned));
                 netcdf.putVar(ncid, bbApex_id, single(apex_aligned));
