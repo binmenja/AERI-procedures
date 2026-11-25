@@ -12,6 +12,8 @@ function [] = processDailyAERIdata_GEOMS(root_dir, mat, nc, debugTemp, doBiasVar
 % all_dates - corresponding timestamps
 % overall_flag_counts - total count of flags across all files
 % overall_flag_percentages - percentage of flags across all files
+
+% need update: the serial should be automatically linked to the aeri unit since we move it and could have them collocated. Have the serial related to the lat/lon is not convenient. -BRB
 close all; 
 
 if nargin < 4 || isempty(debugTemp), debugTemp = false; end 
