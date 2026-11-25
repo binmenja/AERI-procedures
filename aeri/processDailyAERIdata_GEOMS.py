@@ -49,6 +49,8 @@ SITES = [('gault', 45.54, -73.15, '125'), ('nrc', 45.45, -75.62, '122'), ('burns
 SITE_FROM_PATH = {'ponex': ('125', 68 + 18 / 60 + 31.53 / 3600, -(133 + 28 / 60 + 40.32 / 3600), 60),
                   'gault': ('125', 45.53502, -73.14901, 132), 'burnside': ('124', 45.5048, -73.5749, 97)}
 MADISON = (43.0706, -89.4072)
+# one data folder per AERI unit (fallback when the day folder has no inst.id)
+UNIT_FOLDERS = {'aeri_gault': '125', 'aeri_burnside': '124', 'aeri_mobile': '122'}
 # EarthCARE (ECALOT / AOID39821): Ottawa-area sites, Sept 2024 to June 2025
 EARTHCARE_LOCATION = {'NRC': 'OTTAWA.CYOW', 'GAULT': 'GAULT', 'BURNSIDE': 'BURNSIDE'}
 EARTHCARE_PERIOD = (dt.datetime(2024, 9, 1), dt.datetime(2025, 6, 30, 23, 59, 59))
@@ -93,6 +95,19 @@ def site(path, lat, lon, alt):
             return name, serial, lat, lon, alt, False
     warnings.warn(f'{path}: unknown location ({lat:.4f}, {lon:.4f})')
     return f'unknown_{abs(lat):.4f}_{abs(lon):.4f}', 'UNK', lat, lon, alt, False
+
+
+def instrument_serial(day_dir):
+    """Serial of the unit that took the data: inst.id / YYMMDD.PAR from the raw archive, else the unit's data folder."""
+    for f in glob.glob(os.path.join(day_dir, '**', 'inst.id'), recursive=True) + \
+             glob.glob(os.path.join(day_dir, '**', '*.PAR'), recursive=True):
+        m = re.search(r'AERI-(\d+)', open(f, errors='ignore').read())
+        if m:
+            return m.group(1)
+    for folder, serial in UNIT_FOLDERS.items():
+        if folder in day_dir.lower():
+            return serial
+    return None
 
 
 def iso(t):
@@ -285,6 +300,7 @@ def process_day(c1_file, debug_temp=False, bias_vars=False):
 
     lat, lon, alt = (float(c1[n][0]) if n in c1 else np.nan for n in ('Latitude', 'Longitude', 'Altitude'))
     location, serial, lat, lon, alt, from_site = site(c1_file, lat, lon, alt)
+    serial = instrument_serial(os.path.dirname(c1_file)) or serial  # the unit, not the site
     wnum = c1['wnum1']
     d = dict(time=c1['time'][ic], wnum=wnum, rad=c1['mean_rad'][ic], lat=lat, lon=lon, alt=alt,
              coord_note='Stationary instrument; constant across DATETIME.' + (

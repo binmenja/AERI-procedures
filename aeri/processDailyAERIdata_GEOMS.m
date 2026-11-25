@@ -13,7 +13,6 @@ function [] = processDailyAERIdata_GEOMS(root_dir, mat, nc, debugTemp, doBiasVar
 % overall_flag_counts - total count of flags across all files
 % overall_flag_percentages - percentage of flags across all files
 
-% need update: the serial should be automatically linked to the aeri unit since we move it and could have them collocated. Have the serial related to the lat/lon is not convenient. -BRB
 close all; 
 
 if nargin < 4 || isempty(debugTemp), debugTemp = false; end 
@@ -152,6 +151,12 @@ for i = 1:length(aeri_files)
             warning('Unknown location for coordinates (lat=%.4f, lon=%.4f) in file: %s. Proceeding with location=''%s''.', lat, lon, aeri_file, location);
         end
         
+        % The serial now follows the instrumentfrom the inst.id if available, else from the data folder of that unit.
+        unit_serial = instrumentSerial(aeri_files(i).folder);
+        if ~isempty(unit_serial)
+            serial = unit_serial;
+        end
+
         if coords_from_site
             coord_note = 'Stationary instrument; constant across DATETIME. Surveyed site position (the AERI configuration had wrong coordinates).';
         else
@@ -1029,4 +1034,26 @@ for k = 1:length(flag_names)
     end
 end
 
+end
+function serial = instrumentSerial(day_dir)
+% AERI serial number of the unit that took the data in day_dir.
+% 1) inst.id ("AERI-125"), copied from the raw archive (cal/inst.id, or the inst.id section of YYMMDD.PAR)
+% 2) the data folder, one per unit: aeri_gault = 125, aeri_burnside = 124, aeri_mobile = 122
+% Returns '' if neither is found.
+serial = '';
+id_files = [dir(fullfile(day_dir, '**', 'inst.id')); dir(fullfile(day_dir, '**', '*.PAR'))];
+for k = 1:numel(id_files)
+    tok = regexp(fileread(fullfile(id_files(k).folder, id_files(k).name)), 'AERI-(\d+)', 'tokens', 'once');
+    if ~isempty(tok)
+        serial = tok{1};
+        return;
+    end
+end
+units = {'aeri_gault', '125'; 'aeri_burnside', '124'; 'aeri_mobile', '122'};
+for k = 1:size(units, 1)
+    if contains(lower(day_dir), units{k, 1})
+        serial = units{k, 2};
+        return;
+    end
+end
 end
