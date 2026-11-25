@@ -52,7 +52,7 @@ MADISON = (43.0706, -89.4072)
 # one data folder per AERI unit (fallback when the day folder has no inst.id)
 UNIT_FOLDERS = {'aeri_gault': '125', 'aeri_burnside': '124', 'aeri_mobile': '122'}
 # EarthCARE (ECALOT / AOID39821): Ottawa-area sites, Sept 2024 to June 2025
-EARTHCARE_LOCATION = {'NRC': 'OTTAWA.CYOW', 'GAULT': 'GAULT', 'BURNSIDE': 'BURNSIDE'}
+EARTHCARE_LOCATION = {'NRC': 'OTTAWA.CYOW', 'GAULT': 'GAULT', 'BURNSIDE': 'MONTREAL'}
 EARTHCARE_PERIOD = (dt.datetime(2024, 9, 1), dt.datetime(2025, 6, 30, 23, 59, 59))
 
 

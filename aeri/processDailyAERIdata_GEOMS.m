@@ -525,7 +525,7 @@ for i = 1:length(aeri_files)
 
             % EarthCARE (ECALOT / AOID39821) campaign metadata: applies only to the
             % Ottawa-area cal/val sites (not RADAR or INUVIK), Sept 2024 through June 2025
-            earthcare_site_map = containers.Map({'NRC', 'GAULT', 'BURNSIDE'}, {'OTTAWA.CYOW', 'GAULT', 'BURNSIDE'});
+            earthcare_site_map = containers.Map({'NRC', 'GAULT', 'BURNSIDE'}, {'OTTAWA.CYOW', 'GAULT', 'MONTREAL'});
             earthcare_start = datetime(2024, 9, 1, 'TimeZone', 'UTC');
             earthcare_end = datetime(2025, 6, 30, 23, 59, 59, 'TimeZone', 'UTC');
             is_earthcare = isKey(earthcare_site_map, location) && start_dt >= earthcare_start && start_dt <= earthcare_end;
